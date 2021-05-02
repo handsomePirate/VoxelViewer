@@ -9,12 +9,18 @@ project "VoxelViewer"
 	location "proj"
 	targetdir "build/%{cfg.buildcfg}"
 	objdir "proj/obj/%{cfg.buildcfg}"
-	files { "**.hpp", "**.cpp" }
+	files { "src/**.hpp", "src/**.cpp" }
+	include { "ext" }
 
-filter "configurations:Debug"
-	defines { "DEBUG" }
-	symbols "On"
+	filter "system:windows"
+		cppdialect "C++17"
+		staticruntime "On"
+		systemversion "latest"
 
-filter "configurations:Release"
-	defines { "NDEBUG" }
-	optimize "On"
+	filter "configurations:Debug"
+		defines { "DEBUG" }
+		symbols "On"
+	
+	filter "configurations:Release"
+		defines { "RELEASE" }
+		optimize "On"
