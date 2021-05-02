@@ -31,8 +31,11 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# The project folder
+[Pp]roj/
+
 # External 3rd-party software and libraries
-!ext/*
+![Ee]xt/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
