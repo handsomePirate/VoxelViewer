@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <cassert>
 
-//#define DEBUG_MEMORY
-
 #if defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
 #define PLATFORM_WINDOWS
 #ifndef _WIN64
@@ -15,4 +13,4 @@
 #error "OS not supported."
 #endif // defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
 
-#include "Memory/Allocator.hpp"
+// TODO: Memory tracking.
