@@ -10,7 +10,7 @@ project "VoxelViewer"
 	targetdir "build/%{cfg.buildcfg}"
 	objdir "proj/obj/%{cfg.buildcfg}"
 	files { "src/**.hpp", "src/**.cpp" }
-	--include { "ext" }
+	includedirs { "ext", "src/Core" }
 	
 	filter "system:windows"
 		cppdialect "C++17"
