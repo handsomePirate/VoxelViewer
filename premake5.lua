@@ -10,7 +10,8 @@ project "VoxelViewer"
 	targetdir "build/%{cfg.buildcfg}"
 	objdir "proj/obj/%{cfg.buildcfg}"
 	files { "src/**.hpp", "src/**.cpp" }
-	includedirs { "ext", "src/Core" }
+	includedirs { "ext", "src/Core", "$(VULKAN_SDK)/include" }
+	links { "$(VULKAN_SDK)/lib/vulkan-1.lib" }
 	
 	filter "system:windows"
 		cppdialect "C++17"
