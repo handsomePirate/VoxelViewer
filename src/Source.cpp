@@ -3,6 +3,7 @@
 #include "Logger/Logger.hpp"
 #include "Events/EventSystem.hpp"
 #include "Vulkan/VulkanFactory.hpp"
+#include "Vulkan/Utils.hpp"
 #include "Debug/Debug.hpp"
 #include <vector>
 #include <string>
@@ -89,7 +90,7 @@ struct EventLogger
 		const VkDebugUtilsMessengerCallbackDataEXT* callbackData = 
 			(const VkDebugUtilsMessengerCallbackDataEXT*)context.data.u64[0];
 
-		CoreLogger.Log(severity, "[%i][%s] : %s", callbackData->messageIdNumber, callbackData->pMessageIdName, callbackData->pMessage);
+		CoreLogger.Log(severity, "%s", callbackData->pMessage);
 		return true;
 	}
 };
@@ -97,6 +98,7 @@ struct EventLogger
 int main(int argc, char* argv[])
 {
 	const bool enableVulkanDebug = true;
+	const bool useSwapchain = true;
 
 	//=========================== Testing event logging ==============================
 
@@ -126,7 +128,7 @@ int main(int argc, char* argv[])
 		assert(Debug::CheckValidationLayerPresent(validationLayer));
 	}
 
-	VulkanFactory::Instance::CheckExtensionsPresent(vulkanExtensions);
+	VulkanUtils::Instance::CheckExtensionsPresent(vulkanExtensions);
 
 	VkInstance instance = VulkanFactory::Instance::CreateInstance(
 		vulkanExtensions, VK_MAKE_VERSION(1, 2, 0), validationLayer);
@@ -135,6 +137,47 @@ int main(int argc, char* argv[])
 	{
 		Debug::StartInstanceValidationLayers(instance);
 	}
+
+	//=========================== Enumerating and selecting physical devices =========
+
+	std::vector<VkPhysicalDevice> physicalDevices;
+	physicalDevices = VulkanUtils::Device::EnumeratePhysicalDevices(instance);
+
+	for (int d = 0; d < physicalDevices.size(); ++d)
+	{
+		auto deviceProperties = VulkanUtils::Device::GetPhysicalDeviceProperties(physicalDevices[d]);
+
+		CoreLogger.Log(Core::LoggerSeverity::Debug, "Found device (%i): %s", d, deviceProperties.deviceName);
+	}
+
+	VkPhysicalDevice pickedDevice = VulkanUtils::Device::PickDevice(physicalDevices);
+	VulkanFactory::Device device;
+	device.Init(pickedDevice);
+
+	VkPhysicalDeviceFeatures requestedFeatures{};
+	std::vector<const char*> deviceExtensions;
+	bool debugMarkersEnabled = false;
+	if (enableVulkanDebug)
+	{
+		deviceExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+		debugMarkersEnabled = VulkanUtils::Device::CheckExtensionsSupported(pickedDevice, deviceExtensions);
+		if (!debugMarkersEnabled)
+		{
+			deviceExtensions.clear();
+		}
+	}
+	if (useSwapchain)
+	{
+		deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	}
+
+	// TODO: Check if we will need a transfer queue.
+	device.Create(requestedFeatures, deviceExtensions,
+		VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, debugMarkersEnabled);
+
+	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", device.Properties.deviceName);
+
+	//=========================== Creating logical device ============================
 
 	//=========================== Testing window system ==============================
 
@@ -166,5 +209,14 @@ int main(int argc, char* argv[])
 		}
 	}
 	
+	//=========================== Destroying Vulkan objects ==========================
+
+	device.Destroy();
+	if (enableVulkanDebug)
+	{
+		Debug::ShutdownInstanceValidationLayers(instance);
+	}
+	VulkanFactory::Instance::DestroyInstance(instance);
+
 	return 0;
 }
