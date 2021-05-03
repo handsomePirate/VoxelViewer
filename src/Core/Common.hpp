@@ -2,7 +2,11 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <cstdarg>
+#include <cstdio>
+#include <cctype>
 #include <cassert>
+#include <utility>
 
 #if defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
 #define PLATFORM_WINDOWS
