@@ -2,6 +2,8 @@
 #include "Platform/Platform.hpp"
 #include "Logger/Logger.hpp"
 #include "Events/EventSystem.hpp"
+#include "Vulkan/VulkanFactory.hpp"
+#include "Debug/Debug.hpp"
 #include <vector>
 #include <string>
 #include <functional>
@@ -64,10 +66,40 @@ struct EventLogger
 			context.data.u16[0], context.data.u16[1]);
 		return true;
 	}
+
+	bool VulkanValidation(Core::EventCode code, Core::EventData context)
+	{
+		Core::LoggerSeverity severity;
+		switch ((VkDebugUtilsMessageSeverityFlagBitsEXT)context.data.u32[2])
+		{
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+			severity = Core::LoggerSeverity::Trace;
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+			severity = Core::LoggerSeverity::Info;
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+			severity = Core::LoggerSeverity::Warn;
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+			severity = Core::LoggerSeverity::Error;
+			break;
+		}
+
+		const VkDebugUtilsMessengerCallbackDataEXT* callbackData = 
+			(const VkDebugUtilsMessengerCallbackDataEXT*)context.data.u64[0];
+
+		CoreLogger.Log(severity, "[%i][%s] : %s", callbackData->messageIdNumber, callbackData->pMessageIdName, callbackData->pMessage);
+		return true;
+	}
 };
 
 int main(int argc, char* argv[])
 {
+	const bool enableVulkanDebug = true;
+
+	//=========================== Testing event logging ==============================
+
 	EventLogger eventLogger;
 
 	auto keyPressFnc = std::bind(&EventLogger::KeyPressed, &eventLogger, std::placeholders::_1, std::placeholders::_2);
@@ -76,7 +108,35 @@ int main(int argc, char* argv[])
 	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseButtonPressed, mousePressFnc, &eventLogger);
 	auto resizeFnc = std::bind(&EventLogger::WindowResized, &eventLogger, std::placeholders::_1, std::placeholders::_2);
 	CoreEventSystem.SubscribeToEvent(Core::EventCode::WindowResized, resizeFnc, &eventLogger);
+	auto vulkanValidationFnc = std::bind(&EventLogger::VulkanValidation, &eventLogger, std::placeholders::_1, std::placeholders::_2);
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::VulkanValidation, vulkanValidationFnc, &eventLogger);
 
+	//=========================== Setting up Vulkan Instance =========================
+
+	std::vector<const char*> vulkanExtensions =
+	{
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		CorePlatform.GetVulkanSurfacePlatformExtension()
+	};
+
+	const char* validationLayer = enableVulkanDebug ? "VK_LAYER_KHRONOS_validation" : "";
+	if (enableVulkanDebug)
+	{
+		vulkanExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		assert(Debug::CheckValidationLayerPresent(validationLayer));
+	}
+
+	VulkanFactory::Instance::CheckExtensionsPresent(vulkanExtensions);
+
+	VkInstance instance = VulkanFactory::Instance::CreateInstance(
+		vulkanExtensions, VK_MAKE_VERSION(1, 2, 0), validationLayer);
+
+	if (enableVulkanDebug)
+	{
+		Debug::StartInstanceValidationLayers(instance);
+	}
+
+	//=========================== Testing window system ==============================
 
 	std::vector<Core::Window*> windows;
 	int activeWindows = 0;

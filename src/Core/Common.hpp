@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vulkan/vulkan.hpp>
+
 #include <cstdlib>
 #include <cstdint>
 #include <cstdarg>

@@ -225,6 +225,12 @@ void Core::Platform::DeleteWindow(Window* window) const
     }
 }
 
+const char* Core::Platform::GetVulkanSurfacePlatformExtension()
+{
+    static const char* extensionName = "VK_KHR_win32_surface";
+    return extensionName;
+}
+
 void Core::Platform::Quit()
 {
     CoreEventSystem.SignalEvent(Core::EventCode::ApplicationQuit, {});

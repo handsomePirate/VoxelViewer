@@ -8,7 +8,7 @@ namespace Core
 {
     struct EventData
     {
-        // 128 bytes
+        // 128 bits
         union
         {
             int64_t i64[2];
@@ -105,6 +105,13 @@ namespace Core
         * u64 hwnd = context.data.u64[0]
         */
         WindowClosed = 0x09,
+
+        // A debug message caught by Vulkan validation layers.
+        /* Context usage:
+        * u64 callbackData = context.data.u64[0]
+        * u32 severityFlags = context.data.u32[2]
+        */
+        VulkanValidation = 0x0A,
 
         MaxCode = 0xFF
     };
