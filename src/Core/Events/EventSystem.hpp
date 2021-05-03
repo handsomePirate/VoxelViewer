@@ -68,13 +68,15 @@ namespace Core
         /* Context usage:
         * u16 button = context.data.u16[0];
         */
-        ButtonPressed = 0x04,
+        MouseButtonPressed = 0x04,
 
         // Mouse button released.
         /* Context usage:
-        * u16 button = context.data.u16[0];
+        * u16 x = context.data.u16[0];
+        * u16 y = context.data.u16[1];
+        * u16 button = context.data.u8[5];
         */
-        ButtonReleased = 0x05,
+        MouseButtonReleased = 0x05,
 
         // Mouse moved.
         /* Context usage:
@@ -85,7 +87,9 @@ namespace Core
 
         // Mouse moved.
         /* Context usage:
-        * u8 z_delta = context.data.u8[0];
+        * u16 x = context.data.u16[0];
+        * u16 y = context.data.u16[1];
+        * u8 z_delta = context.data.u8[5];
         */
         MouseWheel = 0x07,
 

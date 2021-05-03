@@ -232,9 +232,9 @@ void Core::Platform::Quit()
 
 LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam)
 {
-    if (msg == WM_KEYDOWN || msg == WM_KEYUP)
+    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYUP)
     {
-        Core::EventCode code = msg == WM_KEYDOWN ? Core::EventCode::KeyPressed : Core::EventCode::KeyReleased;
+        Core::EventCode code = msg & 0x0001 ? Core::EventCode::KeyReleased : Core::EventCode::KeyPressed;
         Core::EventData eventData;
         switch (wParam)
         {
@@ -275,19 +275,53 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
         } break;
         default:
             eventData.data.u16[0] = (uint16_t)Core::Key::Ascii;
-            eventData.data.u16[1] = wParam;
+            eventData.data.u16[1] = (uint16_t)wParam;
             break;
         }
         
-        return CoreEventSystem.SignalEvent(code, eventData);
+        CoreEventSystem.SignalEvent(code, eventData);
+        return TRUE;
     }
-
-    if (msg == WM_CLOSE || msg == WM_QUIT)
+    else if (msg == WM_CLOSE)
     {
         //MessageBoxA(NULL, "Quit!", "Info", MB_ICONEXCLAMATION | MB_OK);
         Core::EventData eventData;
         eventData.data.u64[0] = (uint64_t)hwnd;
-        return CoreEventSystem.SignalEvent(Core::EventCode::WindowClosed, eventData);
+        CoreEventSystem.SignalEvent(Core::EventCode::WindowClosed, eventData);
+        return TRUE;
+    }
+    else if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONDBLCLK)
+    {
+        uint8_t whichButton = msg & 0x0001 ? 0 /*left*/ : 1 /*right*/;
+        Core::EventData eventData;
+        POINT pos;
+        GetCursorPos(&pos);
+        eventData.data.u16[0] = (uint16_t)pos.x;
+        eventData.data.u16[1] = (uint16_t)pos.y;
+        eventData.data.u8[5] = whichButton; // left click
+        CoreEventSystem.SignalEvent(Core::EventCode::MouseButtonPressed, eventData);
+        return TRUE;
+    }
+    else if (msg == WM_LBUTTONUP || msg == WM_RBUTTONUP)
+    {
+        uint8_t whichButton = msg & 0x0001 ? 0 /*left*/ : 1 /*right*/;
+        Core::EventData eventData;
+        POINT pos;
+        GetCursorPos(&pos);
+        eventData.data.u16[0] = (uint16_t)pos.x;
+        eventData.data.u16[1] = (uint16_t)pos.y;
+        eventData.data.u8[8] = whichButton; // left click
+        CoreEventSystem.SignalEvent(Core::EventCode::MouseButtonReleased, eventData);
+        return TRUE;
+    }
+    else if (msg == WM_SIZE)
+    {
+        Core::EventData eventData;
+        RECT rectangle;
+        GetClientRect(hwnd, &rectangle);
+        eventData.data.u16[0] = (uint16_t)(rectangle.right - rectangle.left);
+        eventData.data.u16[1] = (uint16_t)(rectangle.bottom - rectangle.top);
+        CoreEventSystem.SignalEvent(Core::EventCode::WindowResized, eventData);
     }
 
     return DefWindowProcA(hwnd, msg, wParam, lParam);

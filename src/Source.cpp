@@ -8,7 +8,7 @@
 
 #include <iostream>
 
-struct ButtonPressedLogger
+struct EventLogger
 {
 	bool KeyPressed(Core::EventCode code, Core::EventData context)
 	{
@@ -38,13 +38,46 @@ struct ButtonPressedLogger
 		CoreLogger.Log(Core::LoggerSeverity::Trace, "Button pressed; data = %s", keyName.c_str());
 		return true;
 	}
+
+	bool MousePressed(Core::EventCode code, Core::EventData context)
+	{
+		std::string whichButtonString;
+
+		switch (context.data.u8[5])
+		{
+		case 0:
+			whichButtonString = "left";
+			break;
+		case 1:
+			whichButtonString = "right";
+			break;
+		}
+
+		CoreLogger.Log(Core::LoggerSeverity::Trace, "Mouse pressed at (%hu, %hu) with %s button", 
+			context.data.u16[0], context.data.u16[1], whichButtonString.c_str());
+		return true;
+	}
+
+	bool WindowResized(Core::EventCode code, Core::EventData context)
+	{
+		CoreLogger.Log(Core::LoggerSeverity::Trace, "Window resized to (%hu, %hu)",
+			context.data.u16[0], context.data.u16[1]);
+		return true;
+	}
 };
 
 int main(int argc, char* argv[])
 {
-	ButtonPressedLogger dummy;
-	auto fnc = std::bind(&ButtonPressedLogger::KeyPressed, &dummy, std::placeholders::_1, std::placeholders::_2);
-	CoreEventSystem.SubscribeToEvent(Core::EventCode::KeyPressed, fnc, &dummy);
+	EventLogger eventLogger;
+
+	auto keyPressFnc = std::bind(&EventLogger::KeyPressed, &eventLogger, std::placeholders::_1, std::placeholders::_2);
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::KeyPressed, keyPressFnc, &eventLogger);
+	auto mousePressFnc = std::bind(&EventLogger::MousePressed, &eventLogger, std::placeholders::_1, std::placeholders::_2);
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseButtonPressed, mousePressFnc, &eventLogger);
+	auto resizeFnc = std::bind(&EventLogger::WindowResized, &eventLogger, std::placeholders::_1, std::placeholders::_2);
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::WindowResized, resizeFnc, &eventLogger);
+
+
 	std::vector<Core::Window*> windows;
 	int activeWindows = 0;
 	for (int i = 0; i < Core::MaxWindows; ++i)
