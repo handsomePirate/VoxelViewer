@@ -9,7 +9,7 @@ namespace Core
 	class Window
 	{
 	public:
-		uint64_t GetSystemID() const;
+		uint64_t GetHandle() const;
 		void PollMessages();
 		bool ShouldClose() const;
 

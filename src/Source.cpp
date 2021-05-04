@@ -199,40 +199,38 @@ int main(int argc, char* argv[])
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &renderSemaphore;
 
-	//=========================== Testing window system ==============================
+	//=========================== Window and swapchain setup =========================
 
-	std::vector<Core::Window*> windows;
-	std::vector<VkSurfaceKHR> surfaces;
-	int activeWindows = 0;
-	for (int i = 0; i < Core::MaxWindows; ++i)
+	Core::Window* window = CorePlatform.GetNewWindow("VoxelViewer", 50, 50, 640, 480);
+	VkSurfaceKHR surface = VulkanFactory::Surface::Create(instance, window->GetHandle());
+
+	VkSurfaceFormatKHR surfaceFormat = VulkanUtils::Device::QuerySurfaceFormat(pickedDevice, surface);
+
+	device.QueueFamilyIndices.present = VulkanUtils::Device::GetPresentQueueIndex(
+		pickedDevice, surface, device.QueueFamilyIndices.graphics);
+
+	// TODO: This is not ideal, but Sascha Willems examples assume the same thing (tested on a lot of machines,
+	// therefore it is probably okay). SW examples also are fine with graphics and compute queue being the same
+	// one without getting a second one from that family.
+	assert(device.QueueFamilyIndices.graphics == device.QueueFamilyIndices.present);
+
+	VkQueue graphicsQueue = VulkanFactory::Queue::Get(
+		device.Handle, device.QueueFamilyIndices.graphics);
+
+	VkQueue computeQueue = VulkanFactory::Queue::Get(
+		device.Handle, device.QueueFamilyIndices.compute);
+
+	//=========================== Rendering and message loop =========================
+
+	while (!window->ShouldClose())
 	{
-		std::string windowName = "Window" + std::to_string(i + 1);
-		windows.push_back(CorePlatform.GetNewWindow(windowName.c_str(), 50, 50, 640, 480));
-		surfaces.push_back(VulkanFactory::Surface::Create(instance, windows[i]->GetSystemID()));
-		if (windows[i])
-		{
-			++activeWindows;
-		}
-	}
-	while (activeWindows != 0)
-	{
-		for (int i = 0; i < windows.size(); ++i)
-		{
-			if (windows[i])
-			{
-				windows[i]->PollMessages();
-				if (windows[i]->ShouldClose())
-				{
-					VulkanFactory::Surface::Destroy(instance, surfaces[i]);
-					CorePlatform.DeleteWindow(windows[i]);
-					windows[i] = nullptr;
-					--activeWindows;
-				}
-			}
-		}
+		window->PollMessages();
 	}
 	
 	//=========================== Destroying Vulkan objects ==========================
+
+	VulkanFactory::Surface::Destroy(instance, surface);
+	CorePlatform.DeleteWindow(window);
 
 	VulkanFactory::Semaphore::Destroy(device.Handle, presentSemaphore);
 	VulkanFactory::Semaphore::Destroy(device.Handle, renderSemaphore);

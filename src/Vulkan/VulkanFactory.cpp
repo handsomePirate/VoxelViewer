@@ -76,7 +76,7 @@ void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 	}
 	else
 	{
-		QueueFamilyIndices.compute = UINT32_MAX;
+		QueueFamilyIndices.compute = QueueFamilyIndices.graphics;
 	}
 
 	// Transfer queue.
@@ -91,7 +91,7 @@ void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 	}
 	else
 	{
-		QueueFamilyIndices.transfer = UINT32_MAX;
+		QueueFamilyIndices.transfer = QueueFamilyIndices.graphics;
 	}
 
 	VkDeviceCreateInfo deviceInitializer = VulkanInitializers::Device();
@@ -112,8 +112,6 @@ void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to connect with the graphics driver.");
 		CorePlatform.Quit();
 	}
-
-	// TODO: Create default command pool for graphics queue.
 }
 
 void VulkanFactory::Device::Destroy()
@@ -232,4 +230,11 @@ VkSurfaceKHR VulkanFactory::Surface::Create(VkInstance instance, uint64_t window
 void VulkanFactory::Surface::Destroy(VkInstance instance, VkSurfaceKHR surface)
 {
 	vkDestroySurfaceKHR(instance, surface, nullptr);
+}
+
+VkQueue VulkanFactory::Queue::Get(VkDevice device, uint32_t queueFamily, uint32_t queueIndex)
+{
+	VkQueue queue;
+	vkGetDeviceQueue(device, queueFamily, queueIndex, &queue);
+	return queue;
 }

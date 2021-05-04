@@ -84,7 +84,7 @@ struct Core::Window::Window::Private
     }
 };
 
-uint64_t Core::Window::GetSystemID() const
+uint64_t Core::Window::GetHandle() const
 {
     return (uint64_t)p_->handle;
 }
@@ -216,7 +216,7 @@ void Core::Platform::DeleteWindow(Window* window) const
     DestroyWindow(handle);
     for (int w = 0; w < MaxWindows; ++w)
     {
-        if (p_->windows[w] && (HWND)p_->windows[w]->GetSystemID() == handle)
+        if (p_->windows[w] && (HWND)p_->windows[w]->GetHandle() == handle)
         {
             delete p_->windows[w];
             p_->windows[w] = nullptr;

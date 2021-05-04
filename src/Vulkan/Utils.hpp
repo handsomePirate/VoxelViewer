@@ -23,5 +23,8 @@ public:
 		static VkPhysicalDevice PickDevice(const std::vector<VkPhysicalDevice>& devices);
 
 		static VkFormat GetSupportedDepthFormat(VkPhysicalDevice device);
+
+		static uint32_t GetPresentQueueIndex(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t graphicsIndex);
+		static VkSurfaceFormatKHR QuerySurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR surface);
 	};
 };

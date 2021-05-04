@@ -39,6 +39,7 @@ public:
 			uint32_t graphics;
 			uint32_t compute;
 			uint32_t transfer;
+			uint32_t present;
 		} QueueFamilyIndices;
 	private:
 		uint32_t GetQueueFamilyIndex(VkQueueFlags queueFlags) const;
@@ -67,5 +68,10 @@ public:
 	public:
 		static VkSurfaceKHR Create(VkInstance instance, uint64_t windowHandle);
 		static void Destroy(VkInstance instance, VkSurfaceKHR surface);
+	};
+	class Queue
+	{
+	public:
+		static VkQueue Get(VkDevice device, uint32_t queueFamily, uint32_t queueIndex = 0);
 	};
 };

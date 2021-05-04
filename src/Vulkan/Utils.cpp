@@ -166,3 +166,80 @@ VkFormat VulkanUtils::Device::GetSupportedDepthFormat(VkPhysicalDevice device)
 
 	return VK_FORMAT_UNDEFINED;
 }
+
+uint32_t VulkanUtils::Device::GetPresentQueueIndex(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t graphicsIndex)
+{
+	uint32_t queueCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, NULL);
+	assert(queueCount >= 1);
+
+	std::vector<VkQueueFamilyProperties> queueProperties;
+	queueProperties.resize(queueCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, queueProperties.data());
+
+	std::vector<VkBool32> supportsPresent;
+	supportsPresent.resize(queueCount);
+	for (uint32_t i = 0; i < queueCount; i++)
+	{
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supportsPresent[i]);
+	}
+
+	if (supportsPresent[graphicsIndex])
+	{
+		return graphicsIndex;
+	}
+
+	for (uint32_t i = 0; i < queueCount; ++i)
+	{
+		if (supportsPresent[i])
+		{
+			CoreLogger.Log(Core::LoggerSeverity::Warn, "Present queue doesn't match graphics queue.");
+			return i;
+		}
+	}
+
+	CoreLogger.Log(Core::LoggerSeverity::Fatal, "Couldn't find a present queue!");
+	CorePlatform.Quit();
+	return 0;
+}
+
+VkSurfaceFormatKHR VulkanUtils::Device::QuerySurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR surface)
+{
+	// Get list of supported surface formats
+	uint32_t formatCount;
+	VkResult result = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
+	assert(formatCount > 0 && result == VK_SUCCESS);
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, surfaceFormats.data());
+
+	VkSurfaceFormatKHR surfaceFormat;
+
+	// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
+	// there is no preferered format, so we assume VK_FORMAT_B8G8R8A8_UNORM
+	if ((formatCount == 1) && (surfaceFormats[0].format == VK_FORMAT_UNDEFINED))
+	{
+		surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+		surfaceFormat.colorSpace = surfaceFormats[0].colorSpace;
+	}
+	else
+	{
+		// iterate over the list of available surface format and
+		// check for the presence of VK_FORMAT_B8G8R8A8_UNORM
+		for (auto&& surfaceFormat : surfaceFormats)
+		{
+			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_UNORM)
+			{
+				surfaceFormat.format = surfaceFormat.format;
+				surfaceFormat.colorSpace = surfaceFormat.colorSpace;
+				return surfaceFormat;
+			}
+		}
+
+		// in case VK_FORMAT_B8G8R8A8_UNORM is not available
+		// select the first available color format
+		surfaceFormat.format = surfaceFormats[0].format;
+		surfaceFormat.colorSpace = surfaceFormats[0].colorSpace;
+	}
+	return surfaceFormat;
+}
