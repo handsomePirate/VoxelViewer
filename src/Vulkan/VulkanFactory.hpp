@@ -8,9 +8,9 @@ public:
 	class Instance
 	{
 	public:
-		static VkInstance CreateInstance(const std::vector<const char*>& extensions, 
+		static VkInstance Create(const std::vector<const char*>& extensions, 
 			uint32_t apiVersion, const char* validationLayerName = "");
-		static void DestroyInstance(VkInstance instance);
+		static void Destroy(VkInstance instance);
 	};
 	class Device
 	{
@@ -30,6 +30,8 @@ public:
 		VkPhysicalDeviceMemoryProperties  MemoryProperties;
 		std::vector<VkQueueFamilyProperties> QueueFamilyProperties;
 
+		VkFormat DepthFormat;
+
 		bool DebugMarkersEnabled;
 
 		struct DeviceQueueFamilyIndices
@@ -39,7 +41,30 @@ public:
 			uint32_t transfer;
 		} QueueFamilyIndices;
 	private:
-		uint32_t GetQueueFamilyIndex(VkQueueFlagBits queueFlags) const;
-		VkDeviceQueueCreateInfo GetQueueCreateInfo(uint32_t& index, VkQueueFlags queueType) const;
+		uint32_t GetQueueFamilyIndex(VkQueueFlags queueFlags) const;
+		VkDeviceQueueCreateInfo GetQueueInitializer(uint32_t& index, VkQueueFlags queueType) const;
 	};
+	class Semaphore
+	{
+	public:
+		static VkSemaphore Create(VkDevice device);
+		static void Destroy(VkDevice device, VkSemaphore semaphore);
+	};
+	class Fence
+	{
+	public:
+		static VkFence Create(VkDevice device, VkFenceCreateFlags flags = 0);
+		static void Destroy(VkDevice device, VkFence fence);
+	};
+};
+
+class VulkanInitializers
+{
+public:
+	static inline VkApplicationInfo ApplicationInfo();
+	static inline VkInstanceCreateInfo Instance(const VkApplicationInfo* appInfo);
+	static inline VkDeviceQueueCreateInfo Queue(const float defaultPriority);
+	static inline VkDeviceCreateInfo Device();
+	static inline VkSemaphoreCreateInfo Semaphore();
+	static inline VkFenceCreateInfo Fence();
 };

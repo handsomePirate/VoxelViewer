@@ -3,37 +3,33 @@
 #include "Logger/Logger.hpp"
 #include "Platform/Platform.hpp"
 
-VkInstance VulkanFactory::Instance::CreateInstance(const std::vector<const char*>& extensions,
+VkInstance VulkanFactory::Instance::Create(const std::vector<const char*>& extensions,
 	uint32_t apiVersion, const char* validationLayerName)
 {
-	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	VkApplicationInfo appInfo = VulkanInitializers::ApplicationInfo();
 	appInfo.pApplicationName = "VoxelViewer";
 	appInfo.pEngineName = "VoxelViewer";
 	appInfo.apiVersion = apiVersion;
 
-	VkInstanceCreateInfo instanceCreateInfo = {};
-	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = NULL;
-	instanceCreateInfo.pApplicationInfo = &appInfo;
+	auto instanceInitializer = VulkanInitializers::Instance(&appInfo);
 	if (extensions.size() > 0)
 	{
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)extensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
+		instanceInitializer.enabledExtensionCount = (uint32_t)extensions.size();
+		instanceInitializer.ppEnabledExtensionNames = extensions.data();
 	}
 	if (validationLayerName != "")
 	{
-		instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
-		instanceCreateInfo.enabledLayerCount = 1;
+		instanceInitializer.ppEnabledLayerNames = &validationLayerName;
+		instanceInitializer.enabledLayerCount = 1;
 	}
 
 	VkInstance instance;
-	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
+	VkResult result = vkCreateInstance(&instanceInitializer, nullptr, &instance);
 	assert(result == VK_SUCCESS);
 	return instance;
 }
 
-void VulkanFactory::Instance::DestroyInstance(VkInstance instance)
+void VulkanFactory::Instance::Destroy(VkInstance instance)
 {
 	vkDestroyInstance(instance, nullptr);
 }
@@ -45,19 +41,22 @@ void VulkanFactory::Device::Init(VkPhysicalDevice physicalDevice)
 	Features = VulkanUtils::Device::GetPhysicalDeviceFeatures(physicalDevice);
 	MemoryProperties = VulkanUtils::Device::GetPhysicalDeviceMemoryProperties(physicalDevice);
 	QueueFamilyProperties = VulkanUtils::Device::GetQueueFamilyProperties(physicalDevice);
+	DepthFormat = VulkanUtils::Device::GetSupportedDepthFormat(physicalDevice);
+
+	assert(DepthFormat != VK_FORMAT_UNDEFINED);
 }
 
 void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 	std::vector<const char*> extensions, VkQueueFlags requestedQueueTypes, bool debugMarkersEnabled)
 {
 	DebugMarkersEnabled = debugMarkersEnabled;
-	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};
+	std::vector<VkDeviceQueueCreateInfo> queueInitializers{};
 
 	// Graphics queue.
 	if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)
 	{
-		auto queueInfo = GetQueueCreateInfo(QueueFamilyIndices.graphics, VK_QUEUE_GRAPHICS_BIT);
-		queueCreateInfos.push_back(queueInfo);
+		auto queueInitializer = GetQueueInitializer(QueueFamilyIndices.graphics, VK_QUEUE_GRAPHICS_BIT);
+		queueInitializers.push_back(queueInitializer);
 	}
 	else
 	{
@@ -67,10 +66,10 @@ void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 	// Compute queue.
 	if (requestedQueueTypes & VK_QUEUE_COMPUTE_BIT)
 	{
-		auto queueInfo = GetQueueCreateInfo(QueueFamilyIndices.compute, VK_QUEUE_GRAPHICS_BIT);
+		auto queueInitializer = GetQueueInitializer(QueueFamilyIndices.compute, VK_QUEUE_GRAPHICS_BIT);
 		if (QueueFamilyIndices.compute != QueueFamilyIndices.graphics)
 		{
-			queueCreateInfos.push_back(queueInfo);
+			queueInitializers.push_back(queueInitializer);
 		}
 	}
 	else
@@ -81,11 +80,11 @@ void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 	// Transfer queue.
 	if (requestedQueueTypes & VK_QUEUE_TRANSFER_BIT)
 	{
-		auto queueInfo = GetQueueCreateInfo(QueueFamilyIndices.transfer, VK_QUEUE_TRANSFER_BIT);
+		auto queueInitializer = GetQueueInitializer(QueueFamilyIndices.transfer, VK_QUEUE_TRANSFER_BIT);
 		if (QueueFamilyIndices.transfer != QueueFamilyIndices.graphics &&
 			QueueFamilyIndices.transfer != QueueFamilyIndices.compute)
 		{
-			queueCreateInfos.push_back(queueInfo);
+			queueInitializers.push_back(queueInitializer);
 		}
 	}
 	else
@@ -93,19 +92,18 @@ void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
 		QueueFamilyIndices.transfer = UINT32_MAX;
 	}
 
-	VkDeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.queueCreateInfoCount = (uint32_t)queueCreateInfos.size();
-	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
-	deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
+	VkDeviceCreateInfo deviceInitializer = VulkanInitializers::Device();
+	deviceInitializer.queueCreateInfoCount = (uint32_t)queueInitializers.size();
+	deviceInitializer.pQueueCreateInfos = queueInitializers.data();
+	deviceInitializer.pEnabledFeatures = &enabledFeatures;
 	EnabledFeatures = enabledFeatures;
 	if (extensions.size() > 0)
 	{
-		deviceCreateInfo.enabledExtensionCount = (uint32_t)extensions.size();
-		deviceCreateInfo.ppEnabledExtensionNames = extensions.data();
+		deviceInitializer.enabledExtensionCount = (uint32_t)extensions.size();
+		deviceInitializer.ppEnabledExtensionNames = extensions.data();
 	}
 
-	VkResult result = vkCreateDevice(PhysicalDevice, &deviceCreateInfo, nullptr, &Handle);
+	VkResult result = vkCreateDevice(PhysicalDevice, &deviceInitializer, nullptr, &Handle);
 
 	if (result != VK_SUCCESS)
 	{
@@ -122,7 +120,7 @@ void VulkanFactory::Device::Destroy()
 	vkDestroyDevice(Handle, nullptr);
 }
 
-uint32_t VulkanFactory::Device::GetQueueFamilyIndex(VkQueueFlagBits queueFlags) const
+uint32_t VulkanFactory::Device::GetQueueFamilyIndex(VkQueueFlags queueFlags) const
 {
 	// Dedicated queue for compute.
 	// Try to find a queue family index that supports compute but not graphics.
@@ -169,16 +167,89 @@ uint32_t VulkanFactory::Device::GetQueueFamilyIndex(VkQueueFlagBits queueFlags) 
 	return UINT32_MAX;
 }
 
-VkDeviceQueueCreateInfo VulkanFactory::Device::GetQueueCreateInfo(uint32_t& index, VkQueueFlags queueType) const
+VkDeviceQueueCreateInfo VulkanFactory::Device::GetQueueInitializer(uint32_t& index, VkQueueFlags queueType) const
 {
 	const float defaultQueuePriority = 0.f;
 
 	index = GetQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);
-	VkDeviceQueueCreateInfo queueInfo{};
-	queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueInfo.queueFamilyIndex = QueueFamilyIndices.graphics;
-	queueInfo.queueCount = 1;
-	queueInfo.pQueuePriorities = &defaultQueuePriority;
+	VkDeviceQueueCreateInfo queueInfo = VulkanInitializers::Queue(defaultQueuePriority);
+	queueInfo.queueFamilyIndex = index;
 
 	return queueInfo;
+}
+
+VkSemaphore VulkanFactory::Semaphore::Create(VkDevice device)
+{
+	auto semaphoreInitializer = VulkanInitializers::Semaphore();
+	VkSemaphore semaphore;
+	VkResult result = vkCreateSemaphore(device, &semaphoreInitializer, nullptr, &semaphore);
+	assert(result == VK_SUCCESS);
+	return semaphore;
+}
+
+void VulkanFactory::Semaphore::Destroy(VkDevice device, VkSemaphore semaphore)
+{
+	vkDestroySemaphore(device, semaphore, nullptr);
+}
+
+VkFence VulkanFactory::Fence::Create(VkDevice device, VkFenceCreateFlags flags)
+{
+	auto fenceInitializer = VulkanInitializers::Fence();
+	fenceInitializer.flags = flags;
+	VkFence fence;
+	VkResult result = vkCreateFence(device, &fenceInitializer, nullptr, &fence);
+	assert(result == VK_SUCCESS);
+	return fence;
+}
+
+void VulkanFactory::Fence::Destroy(VkDevice device, VkFence fence)
+{
+	vkDestroyFence(device, fence, nullptr);
+}
+
+// ================================ Initializers =====================================
+
+inline VkApplicationInfo VulkanInitializers::ApplicationInfo()
+{
+	VkApplicationInfo applicationInfo{};
+	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	return applicationInfo;
+}
+
+inline VkInstanceCreateInfo VulkanInitializers::Instance(const VkApplicationInfo* appInfo)
+{
+	VkInstanceCreateInfo instanceCreateInfo{};
+	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateInfo.pApplicationInfo = appInfo;
+	return instanceCreateInfo;
+}
+
+inline VkDeviceQueueCreateInfo VulkanInitializers::Queue(const float defaultPriority)
+{
+	VkDeviceQueueCreateInfo queueCreateInfo{};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.queueCount = 1;
+	queueCreateInfo.pQueuePriorities = &defaultPriority;
+	return queueCreateInfo;
+}
+
+inline VkDeviceCreateInfo VulkanInitializers::Device()
+{
+	VkDeviceCreateInfo deviceCreateInfo{};
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	return deviceCreateInfo;
+}
+
+inline VkSemaphoreCreateInfo VulkanInitializers::Semaphore()
+{
+	VkSemaphoreCreateInfo semaphoreCreateInfo{};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	return semaphoreCreateInfo;
+}
+
+inline VkFenceCreateInfo VulkanInitializers::Fence()
+{
+	VkFenceCreateInfo fenceCreateInfo{};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	return fenceCreateInfo;
 }
