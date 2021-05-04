@@ -4,6 +4,7 @@
 #include "Events/EventSystem.hpp"
 #include "Vulkan/VulkanFactory.hpp"
 #include "Vulkan/Utils.hpp"
+#include "Vulkan/Initializers.hpp"
 #include "Debug/Debug.hpp"
 #include <vector>
 #include <string>
@@ -130,7 +131,7 @@ int main(int argc, char* argv[])
 
 	VulkanUtils::Instance::CheckExtensionsPresent(vulkanExtensions);
 
-	VkInstance instance = VulkanFactory::Instance::CreateInstance(
+	VkInstance instance = VulkanFactory::Instance::Create(
 		vulkanExtensions, VK_MAKE_VERSION(1, 2, 0), validationLayer);
 
 	if (enableVulkanDebug)
@@ -174,20 +175,40 @@ int main(int argc, char* argv[])
 		deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 	}
 
-	// TODO: Check if we will need a transfer queue.
 	device.Create(requestedFeatures, deviceExtensions,
 		VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, debugMarkersEnabled);
 
 	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", device.Properties.deviceName);
 
+	if (enableVulkanDebug && debugMarkersEnabled)
+	{
+		Debug::Markers::Setup(device.Handle);
+	}
+
+	VkCommandPool graphicsCommandPool = VulkanFactory::CommandPool::Create(
+		device.Handle, device.QueueFamilyIndices.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+
+	VkSemaphore renderSemaphore = VulkanFactory::Semaphore::Create(device.Handle);
+	VkSemaphore presentSemaphore = VulkanFactory::Semaphore::Create(device.Handle);
+
+	VkPipelineStageFlags pipelineStageWait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	auto submitInfo = VulkanInitializers::SubmitInfo();
+	submitInfo.pWaitDstStageMask = &pipelineStageWait;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &presentSemaphore;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &renderSemaphore;
+
 	//=========================== Testing window system ==============================
 
 	std::vector<Core::Window*> windows;
+	std::vector<VkSurfaceKHR> surfaces;
 	int activeWindows = 0;
 	for (int i = 0; i < Core::MaxWindows; ++i)
 	{
 		std::string windowName = "Window" + std::to_string(i + 1);
 		windows.push_back(CorePlatform.GetNewWindow(windowName.c_str(), 50, 50, 640, 480));
+		surfaces.push_back(VulkanFactory::Surface::Create(instance, windows[i]->GetSystemID()));
 		if (windows[i])
 		{
 			++activeWindows;
@@ -202,6 +223,7 @@ int main(int argc, char* argv[])
 				windows[i]->PollMessages();
 				if (windows[i]->ShouldClose())
 				{
+					VulkanFactory::Surface::Destroy(instance, surfaces[i]);
 					CorePlatform.DeleteWindow(windows[i]);
 					windows[i] = nullptr;
 					--activeWindows;
@@ -212,12 +234,17 @@ int main(int argc, char* argv[])
 	
 	//=========================== Destroying Vulkan objects ==========================
 
+	VulkanFactory::Semaphore::Destroy(device.Handle, presentSemaphore);
+	VulkanFactory::Semaphore::Destroy(device.Handle, renderSemaphore);
+
+	VulkanFactory::CommandPool::Destroy(device.Handle, graphicsCommandPool);
+
 	device.Destroy();
 	if (enableVulkanDebug)
 	{
 		Debug::ValidationLayers::Shutdown(instance);
 	}
-	VulkanFactory::Instance::DestroyInstance(instance);
+	VulkanFactory::Instance::Destroy(instance);
 
 	return 0;
 }

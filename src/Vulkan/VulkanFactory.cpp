@@ -1,7 +1,9 @@
 #include "VulkanFactory.hpp"
 #include "Utils.hpp"
 #include "Logger/Logger.hpp"
+#include "Platform.hpp"
 #include "Platform/Platform.hpp"
+#include "Initializers.hpp"
 
 VkInstance VulkanFactory::Instance::Create(const std::vector<const char*>& extensions,
 	uint32_t apiVersion, const char* validationLayerName)
@@ -178,6 +180,21 @@ VkDeviceQueueCreateInfo VulkanFactory::Device::GetQueueInitializer(uint32_t& ind
 	return queueInfo;
 }
 
+VkCommandPool VulkanFactory::CommandPool::Create(VkDevice device, uint32_t queueIndex, VkCommandPoolCreateFlags flags)
+{
+	auto commandPoolInitializer = VulkanInitializers::CommandPool();
+	commandPoolInitializer.queueFamilyIndex = queueIndex;
+	commandPoolInitializer.flags = flags;
+	VkCommandPool commandPool;
+	vkCreateCommandPool(device, &commandPoolInitializer, nullptr, &commandPool);
+	return commandPool;
+}
+
+void VulkanFactory::CommandPool::Destroy(VkDevice device, VkCommandPool commandPool)
+{
+	vkDestroyCommandPool(device, commandPool, nullptr);
+}
+
 VkSemaphore VulkanFactory::Semaphore::Create(VkDevice device)
 {
 	auto semaphoreInitializer = VulkanInitializers::Semaphore();
@@ -207,49 +224,12 @@ void VulkanFactory::Fence::Destroy(VkDevice device, VkFence fence)
 	vkDestroyFence(device, fence, nullptr);
 }
 
-// ================================ Initializers =====================================
-
-inline VkApplicationInfo VulkanInitializers::ApplicationInfo()
+VkSurfaceKHR VulkanFactory::Surface::Create(VkInstance instance, uint64_t windowHandle)
 {
-	VkApplicationInfo applicationInfo{};
-	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	return applicationInfo;
+	return SurfaceFactory::Create(instance, windowHandle);
 }
 
-inline VkInstanceCreateInfo VulkanInitializers::Instance(const VkApplicationInfo* appInfo)
+void VulkanFactory::Surface::Destroy(VkInstance instance, VkSurfaceKHR surface)
 {
-	VkInstanceCreateInfo instanceCreateInfo{};
-	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pApplicationInfo = appInfo;
-	return instanceCreateInfo;
-}
-
-inline VkDeviceQueueCreateInfo VulkanInitializers::Queue(const float defaultPriority)
-{
-	VkDeviceQueueCreateInfo queueCreateInfo{};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueCount = 1;
-	queueCreateInfo.pQueuePriorities = &defaultPriority;
-	return queueCreateInfo;
-}
-
-inline VkDeviceCreateInfo VulkanInitializers::Device()
-{
-	VkDeviceCreateInfo deviceCreateInfo{};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	return deviceCreateInfo;
-}
-
-inline VkSemaphoreCreateInfo VulkanInitializers::Semaphore()
-{
-	VkSemaphoreCreateInfo semaphoreCreateInfo{};
-	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	return semaphoreCreateInfo;
-}
-
-inline VkFenceCreateInfo VulkanInitializers::Fence()
-{
-	VkFenceCreateInfo fenceCreateInfo{};
-	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	return fenceCreateInfo;
+	vkDestroySurfaceKHR(instance, surface, nullptr);
 }

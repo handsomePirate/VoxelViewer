@@ -44,6 +44,12 @@ public:
 		uint32_t GetQueueFamilyIndex(VkQueueFlags queueFlags) const;
 		VkDeviceQueueCreateInfo GetQueueInitializer(uint32_t& index, VkQueueFlags queueType) const;
 	};
+	class CommandPool
+	{
+	public:
+		static VkCommandPool Create(VkDevice device, uint32_t queueIndex, VkCommandPoolCreateFlags flags = 0);
+		static void Destroy(VkDevice device, VkCommandPool commandPool);
+	};
 	class Semaphore
 	{
 	public:
@@ -56,15 +62,10 @@ public:
 		static VkFence Create(VkDevice device, VkFenceCreateFlags flags = 0);
 		static void Destroy(VkDevice device, VkFence fence);
 	};
-};
-
-class VulkanInitializers
-{
-public:
-	static inline VkApplicationInfo ApplicationInfo();
-	static inline VkInstanceCreateInfo Instance(const VkApplicationInfo* appInfo);
-	static inline VkDeviceQueueCreateInfo Queue(const float defaultPriority);
-	static inline VkDeviceCreateInfo Device();
-	static inline VkSemaphoreCreateInfo Semaphore();
-	static inline VkFenceCreateInfo Fence();
+	class Surface
+	{
+	public:
+		static VkSurfaceKHR Create(VkInstance instance, uint64_t windowHandle);
+		static void Destroy(VkInstance instance, VkSurfaceKHR surface);
+	};
 };

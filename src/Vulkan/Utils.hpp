@@ -21,5 +21,7 @@ public:
 		static bool CheckExtensionsSupported(VkPhysicalDevice device, const std::vector<const char*>& extensions);
 		static int RateDevice(VkPhysicalDevice device);
 		static VkPhysicalDevice PickDevice(const std::vector<VkPhysicalDevice>& devices);
+
+		static VkFormat GetSupportedDepthFormat(VkPhysicalDevice device);
 	};
 };

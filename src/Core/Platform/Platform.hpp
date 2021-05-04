@@ -33,6 +33,8 @@ namespace Core
 		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t width, uint32_t height) const;
 		void DeleteWindow(Window* window) const;
 
+		static uint64_t GetProgramID();
+
 		static const char* GetVulkanSurfacePlatformExtension();
 
 		void Quit();
