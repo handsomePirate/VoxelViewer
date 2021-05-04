@@ -70,7 +70,7 @@ struct EventLogger
 
 	bool VulkanValidation(Core::EventCode code, Core::EventData context)
 	{
-		Core::LoggerSeverity severity;
+		Core::LoggerSeverity severity = Core::LoggerSeverity::Debug;
 		switch ((VkDebugUtilsMessageSeverityFlagBitsEXT)context.data.u32[2])
 		{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 	if (enableVulkanDebug)
 	{
 		vulkanExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		assert(Debug::CheckValidationLayerPresent(validationLayer));
+		assert(Debug::ValidationLayers::CheckLayerPresent(validationLayer));
 	}
 
 	VulkanUtils::Instance::CheckExtensionsPresent(vulkanExtensions);
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 
 	if (enableVulkanDebug)
 	{
-		Debug::StartInstanceValidationLayers(instance);
+		Debug::ValidationLayers::Start(instance);
 	}
 
 	//=========================== Enumerating and selecting physical devices =========
@@ -151,6 +151,9 @@ int main(int argc, char* argv[])
 	}
 
 	VkPhysicalDevice pickedDevice = VulkanUtils::Device::PickDevice(physicalDevices);
+
+	//=========================== Creating logical device ============================
+
 	VulkanFactory::Device device;
 	device.Init(pickedDevice);
 
@@ -176,8 +179,6 @@ int main(int argc, char* argv[])
 		VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, debugMarkersEnabled);
 
 	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", device.Properties.deviceName);
-
-	//=========================== Creating logical device ============================
 
 	//=========================== Testing window system ==============================
 
@@ -214,7 +215,7 @@ int main(int argc, char* argv[])
 	device.Destroy();
 	if (enableVulkanDebug)
 	{
-		Debug::ShutdownInstanceValidationLayers(instance);
+		Debug::ValidationLayers::Shutdown(instance);
 	}
 	VulkanFactory::Instance::DestroyInstance(instance);
 
