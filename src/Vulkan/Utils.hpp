@@ -2,6 +2,8 @@
 #include "Common.hpp"
 #include <vector>
 
+// TODO: Large Vulkan structs need to be handled by reference.
+
 namespace VulkanUtils
 {
 	class Instance
@@ -45,5 +47,21 @@ namespace VulkanUtils
 		static uint32_t QueryImageCount(VkSurfaceCapabilitiesKHR surfaceCapabilities);
 		static VkCompositeAlphaFlagBitsKHR QueryCompositeAlpha(VkSurfaceCapabilitiesKHR surfaceCapabilities);
 		static std::vector<VkImage> GetImages(VkDevice device, VkSwapchainKHR swapchain);
+	};
+	class Image
+	{
+	public:
+		static inline VkMemoryRequirements GetMemoryRequirements(VkDevice device, VkImage image)
+		{
+			VkMemoryRequirements memoryRequirements;
+			vkGetImageMemoryRequirements(device, image, &memoryRequirements);
+			return  memoryRequirements;
+		}
+	};
+	class Memory
+	{
+	public:
+		static uint32_t GetTypeIndex(VkPhysicalDeviceMemoryProperties memoryProperties,
+			uint32_t filter, VkMemoryPropertyFlags requiredProperties);
 	};
 };

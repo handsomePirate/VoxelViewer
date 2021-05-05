@@ -266,14 +266,175 @@ VkCommandBuffer VulkanFactory::CommandBuffer::AllocatePrimary(VkDevice device, V
 
 	VkCommandBuffer commandBuffer;
 	vkAllocateCommandBuffers(device, &commandBufferInitializer, &commandBuffer);
+
+	return commandBuffer;
 }
 
 void VulkanFactory::CommandBuffer::Free(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& buffers)
 {
-	vkFreeCommandBuffers(device, commandPool, buffers.size(), buffers.data());
+	vkFreeCommandBuffers(device, commandPool, (uint32_t)buffers.size(), buffers.data());
 }
 
 void VulkanFactory::CommandBuffer::Free(VkDevice device, VkCommandPool commandPool, VkCommandBuffer buffer)
 {
 	vkFreeCommandBuffers(device, commandPool, 1, &buffer);
+}
+
+void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo, VkFormat format,
+	uint32_t width, uint32_t height, ImageInfo& output)
+{
+	auto imageInitializer = VulkanInitializers::Image(format);
+	imageInitializer.extent = { width, height, 1 };
+	imageInitializer.mipLevels = 1;
+	imageInitializer.arrayLayers = 1;
+	imageInitializer.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInitializer.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInitializer.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+	VkResult result = vkCreateImage(deviceInfo.Handle, &imageInitializer, nullptr, &output.image);
+	assert(result == VK_SUCCESS);
+
+	VkMemoryRequirements memoryRequirements = VulkanUtils::Image::GetMemoryRequirements(deviceInfo.Handle, output.image);
+	auto memoryAllocateInfo = VulkanInitializers::MemoryAllocation(
+		memoryRequirements.size,
+		VulkanUtils::Memory::GetTypeIndex(
+			deviceInfo.MemoryProperties,
+			memoryRequirements.memoryTypeBits,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+	);
+
+	vkAllocateMemory(deviceInfo.Handle, &memoryAllocateInfo, nullptr, &output.memory);
+	vkBindImageMemory(deviceInfo.Handle, output.image, output.memory, 0);
+
+	auto depthAttachmentViewInitializer = VulkanInitializers::DepthAttachmentView(output.image, format);
+	vkCreateImageView(deviceInfo.Handle, &depthAttachmentViewInitializer, nullptr, &output.view);
+}
+
+void VulkanFactory::Image::Destroy(VkDevice device, ImageInfo& imageInfo)
+{
+	vkDestroyImageView(device, imageInfo.view, nullptr);
+	vkFreeMemory(device, imageInfo.memory, nullptr);
+	vkDestroyImage(device, imageInfo.image, nullptr);
+}
+
+VkRenderPass VulkanFactory::RenderPass::Create(VkDevice device, VkFormat colorFormat, VkFormat depthFormat)
+{
+	const int attachmentCount = 2;
+	VkAttachmentDescription attachments[attachmentCount];
+	// Color attachment
+	attachments[0] = {};
+	attachments[0].format = colorFormat;
+	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	// Depth attachment
+	attachments[1] = {};
+	attachments[1].format = depthFormat;
+	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference colorReference{};
+	colorReference.attachment = 0;
+	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depthReference{};
+	depthReference.attachment = 1;
+	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpassDescription{};
+	subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpassDescription.colorAttachmentCount = 1;
+	subpassDescription.pColorAttachments = &colorReference;
+	subpassDescription.pDepthStencilAttachment = &depthReference;
+
+	// Subpass dependencies for layout transitions
+	const int dependencyCount = 2;
+	VkSubpassDependency dependencies[dependencyCount];
+
+	dependencies[0] = {};
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	dependencies[1] = {};
+	dependencies[1].srcSubpass = 0;
+	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = attachmentCount;
+	renderPassInfo.pAttachments = attachments;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpassDescription;
+	renderPassInfo.dependencyCount = dependencyCount;
+	renderPassInfo.pDependencies = dependencies;
+
+	VkRenderPass output;
+	VkResult result = vkCreateRenderPass(device, &renderPassInfo, nullptr, &output);
+
+	return output;
+}
+
+void VulkanFactory::RenderPass::Destroy(VkDevice device, VkRenderPass renderPass)
+{
+	vkDestroyRenderPass(device, renderPass, nullptr);
+}
+
+VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
+	VkImageView colorView, VkImageView depthView)
+{
+	const int attachmentCount = 2;
+	VkImageView attachments[attachmentCount];
+	attachments[0] = colorView;
+	attachments[1] = depthView;
+
+	auto framebufferInitializer = VulkanInitializers::Framebuffer();
+	framebufferInitializer.renderPass = renderPass;
+	framebufferInitializer.attachmentCount = attachmentCount;
+	framebufferInitializer.pAttachments = attachments;
+	framebufferInitializer.width = width;
+	framebufferInitializer.height = height;
+	framebufferInitializer.layers = 1;
+
+	VkFramebuffer framebuffer;
+	VkResult result = vkCreateFramebuffer(device, &framebufferInitializer, nullptr, &framebuffer);
+	assert(result == VK_SUCCESS);
+
+	return framebuffer;
+}
+
+void VulkanFactory::Framebuffer::Destroy(VkDevice device, VkFramebuffer framebuffer)
+{
+	vkDestroyFramebuffer(device, framebuffer, nullptr);
+}
+
+VkPipelineCache VulkanFactory::Pipeline::CreateCache(VkDevice device)
+{
+	auto pipelineCacheInitializer = VulkanInitializers::PipelineCache();
+	VkPipelineCache pipelineCache;
+	vkCreatePipelineCache(device, &pipelineCacheInitializer, nullptr, &pipelineCache);
+	return pipelineCache;
+}
+
+void VulkanFactory::Pipeline::DestroyCache(VkDevice device, VkPipelineCache pipelineCache)
+{
+	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 }

@@ -80,20 +80,20 @@ namespace VulkanInitializers
 		return swapchainInfo;
 	}
 
-	inline VkImageViewCreateInfo ImageView(VkImage image)
+	inline VkImageViewCreateInfo ImageView(VkImage image, VkFormat format)
 	{
 		VkImageViewCreateInfo imageView = {};
 		imageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageView.image = image;
+		imageView.format = format;
 		return imageView;
 	}
 
-	inline VkImageViewCreateInfo ColorAttachmentView(VkImage image, VkFormat colorFormat)
+	inline VkImageViewCreateInfo ColorAttachmentView(VkImage image, VkFormat format)
 	{
-		VkImageViewCreateInfo colorAttachmentView = ImageView(image);
+		VkImageViewCreateInfo colorAttachmentView = ImageView(image, format);
 		
 		colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		colorAttachmentView.format = colorFormat;
 		colorAttachmentView.components =
 		{
 			VK_COMPONENT_SWIZZLE_R,
@@ -109,6 +109,24 @@ namespace VulkanInitializers
 		return colorAttachmentView;
 	}
 
+	inline VkImageViewCreateInfo DepthAttachmentView(VkImage image, VkFormat format)
+	{
+		VkImageViewCreateInfo depthAttachmentView = ImageView(image, format);
+
+		depthAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		depthAttachmentView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		depthAttachmentView.subresourceRange.levelCount = 1;
+		depthAttachmentView.subresourceRange.layerCount = 1;
+		depthAttachmentView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+
+		if (format >= VK_FORMAT_D16_UNORM_S8_UINT)
+		{
+			depthAttachmentView.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+
+		return depthAttachmentView;
+	}
+
 	inline VkCommandBufferAllocateInfo CommandBufferAllocation(VkCommandPool commandPool,
 		VkCommandBufferLevel level, uint32_t bufferCount)
 	{
@@ -118,5 +136,37 @@ namespace VulkanInitializers
 		commandBufferAllocateInfo.level = level;
 		commandBufferAllocateInfo.commandBufferCount = bufferCount;
 		return commandBufferAllocateInfo;
+	}
+
+	inline VkImageCreateInfo Image(VkFormat format)
+	{
+		VkImageCreateInfo imageCreateInfo{};
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.format = format;
+		return imageCreateInfo;
+	}
+
+	inline VkMemoryAllocateInfo MemoryAllocation(VkDeviceSize size, uint32_t typeIndex)
+	{
+		VkMemoryAllocateInfo memoryAllocateInfo{};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.allocationSize = size;
+		memoryAllocateInfo.memoryTypeIndex = typeIndex;
+		return memoryAllocateInfo;
+	}
+
+	inline VkFramebufferCreateInfo Framebuffer()
+	{
+		VkFramebufferCreateInfo framebufferCreateInfo{};
+		framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		return framebufferCreateInfo;
+	}
+
+	inline VkPipelineCacheCreateInfo PipelineCache()
+	{
+		VkPipelineCacheCreateInfo pipelineCacheInfo{};
+		pipelineCacheInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+		return pipelineCacheInfo;
 	}
 };

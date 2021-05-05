@@ -404,3 +404,19 @@ std::vector<VkImage> VulkanUtils::Swapchain::GetImages(VkDevice device, VkSwapch
 
 	return images;
 }
+
+uint32_t VulkanUtils::Memory::GetTypeIndex(VkPhysicalDeviceMemoryProperties memoryProperties,
+	uint32_t filter, VkMemoryPropertyFlags requiredProperties)
+{
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)
+	{
+		if (filter & 1 << i && 
+			(memoryProperties.memoryTypes[i].propertyFlags & requiredProperties) == requiredProperties)
+		{
+			return i;
+		}
+	}
+
+	CoreLogger.Log(Core::LoggerSeverity::Fatal, "Couldn't find a matching memory type!");
+	return UINT32_MAX;
+}

@@ -113,4 +113,39 @@ namespace VulkanFactory
 		static void Free(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& buffers);
 		static void Free(VkDevice device, VkCommandPool commandPool, VkCommandBuffer buffer);
 	};
+	class Image
+	{
+	public:
+		struct ImageInfo;
+
+		static void Create(const Device::DeviceInfo& deviceInfo, VkFormat format,
+			uint32_t width, uint32_t height, ImageInfo& output);
+		static void Destroy(VkDevice device, ImageInfo& imageInfo);
+
+		struct ImageInfo
+		{
+			VkImage image;
+			VkImageView view;
+			VkDeviceMemory memory;
+		};
+	};
+	class RenderPass
+	{
+	public:
+		static VkRenderPass Create(VkDevice device, VkFormat colorFormat, VkFormat depthFormat);
+		static void Destroy(VkDevice device, VkRenderPass renderPass);
+	};
+	class Framebuffer
+	{
+	public:
+		static VkFramebuffer Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
+			VkImageView colorView, VkImageView depthView);
+		static void Destroy(VkDevice device, VkFramebuffer framebuffer);
+	};
+	class Pipeline
+	{
+	public:
+		static VkPipelineCache CreateCache(VkDevice device);
+		static void DestroyCache(VkDevice device, VkPipelineCache pipelineCache);
+	};
 };

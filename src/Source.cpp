@@ -233,7 +233,8 @@ int main(int argc, char* argv[])
 
 	std::vector<VkCommandBuffer> drawCommandBuffers;
 	VulkanFactory::CommandBuffer::AllocatePrimary(
-		deviceInfo.Handle, graphicsCommandPool, drawCommandBuffers, swapchainInfo.Images.size());
+		deviceInfo.Handle, graphicsCommandPool, drawCommandBuffers,
+		(uint32_t)swapchainInfo.Images.size());
 
 	std::vector<VkFence> fences;
 	fences.resize(swapchainInfo.Images.size());
@@ -242,13 +243,22 @@ int main(int argc, char* argv[])
 		fence = VulkanFactory::Fence::Create(deviceInfo.Handle, VK_FENCE_CREATE_SIGNALED_BIT);
 	}
 
-	// TODO: Depth & Stencil.
+	VulkanFactory::Image::ImageInfo depthStencil;
+	VulkanFactory::Image::Create(deviceInfo, deviceInfo.DepthFormat, windowWidth, windowHeight, depthStencil);
 
-	// TODO: Render pass.
+	VkRenderPass renderPass = VulkanFactory::RenderPass::Create(deviceInfo.Handle,
+		deviceInfo.SurfaceFormat.format, deviceInfo.DepthFormat);
 
-	// TODO: Pipeline cache.
+	VkPipelineCache pipelineCache = VulkanFactory::Pipeline::CreateCache(deviceInfo.Handle);
 
 	// TODO: Framebuffer.
+	std::vector<VkFramebuffer> framebuffers;
+	framebuffers.resize(swapchainInfo.Images.size());
+	for (int f = 0; f < framebuffers.size(); ++f)
+	{
+		framebuffers[f] = VulkanFactory::Framebuffer::Create(deviceInfo.Handle, renderPass,
+			windowWidth, windowHeight, swapchainInfo.ImageViews[f], depthStencil.view);
+	}
 	
 	// TODO: UI.
 
@@ -276,6 +286,24 @@ int main(int argc, char* argv[])
 	}
 	
 	//=========================== Destroying Vulkan objects ==========================
+
+	for (auto& framebuffer : framebuffers)
+	{
+		VulkanFactory::Framebuffer::Destroy(deviceInfo.Handle, framebuffer);
+	}
+
+	VulkanFactory::Pipeline::DestroyCache(deviceInfo.Handle, pipelineCache);
+	
+	VulkanFactory::RenderPass::Destroy(deviceInfo.Handle, renderPass);
+	
+	VulkanFactory::Image::Destroy(deviceInfo.Handle, depthStencil);
+
+	for (auto& fence : fences)
+	{
+		VulkanFactory::Fence::Destroy(deviceInfo.Handle, fence);
+	}
+	
+	VulkanFactory::CommandBuffer::Free(deviceInfo.Handle, graphicsCommandPool, drawCommandBuffers);
 
 	VulkanFactory::Swapchain::Destroy(deviceInfo, swapchainInfo);
 
