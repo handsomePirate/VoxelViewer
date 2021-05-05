@@ -155,9 +155,6 @@ int main(int argc, char* argv[])
 
 	//=========================== Creating logical device ============================
 
-	VulkanFactory::Device device;
-	device.Init(pickedDevice);
-
 	VkPhysicalDeviceFeatures requestedFeatures{};
 	std::vector<const char*> deviceExtensions;
 	bool debugMarkersEnabled = false;
@@ -175,21 +172,23 @@ int main(int argc, char* argv[])
 		deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 	}
 
-	device.Create(requestedFeatures, deviceExtensions,
-		VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, debugMarkersEnabled);
+	VulkanFactory::Device::DeviceInfo deviceInfo;
+	VulkanFactory::Device::Create(pickedDevice,requestedFeatures, deviceExtensions,
+		deviceInfo, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, debugMarkersEnabled);
 
-	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", device.Properties.deviceName);
+	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", deviceInfo.Properties.deviceName);
 
 	if (enableVulkanDebug && debugMarkersEnabled)
 	{
-		Debug::Markers::Setup(device.Handle);
+		Debug::Markers::Setup(deviceInfo.Handle);
 	}
 
 	VkCommandPool graphicsCommandPool = VulkanFactory::CommandPool::Create(
-		device.Handle, device.QueueFamilyIndices.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.graphics,
+		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-	VkSemaphore renderSemaphore = VulkanFactory::Semaphore::Create(device.Handle);
-	VkSemaphore presentSemaphore = VulkanFactory::Semaphore::Create(device.Handle);
+	VkSemaphore renderSemaphore = VulkanFactory::Semaphore::Create(deviceInfo.Handle);
+	VkSemaphore presentSemaphore = VulkanFactory::Semaphore::Create(deviceInfo.Handle);
 
 	VkPipelineStageFlags pipelineStageWait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	auto submitInfo = VulkanInitializers::SubmitInfo();
@@ -201,24 +200,73 @@ int main(int argc, char* argv[])
 
 	//=========================== Window and swapchain setup =========================
 
-	Core::Window* window = CorePlatform.GetNewWindow("VoxelViewer", 50, 50, 640, 480);
+	uint32_t windowWidth = 640;
+	uint32_t windowHeight = 480;
+	Core::Window* window = CorePlatform.GetNewWindow("VoxelViewer", 50, 50, windowWidth, windowHeight);
 	VkSurfaceKHR surface = VulkanFactory::Surface::Create(instance, window->GetHandle());
 
-	VkSurfaceFormatKHR surfaceFormat = VulkanUtils::Device::QuerySurfaceFormat(pickedDevice, surface);
+	deviceInfo.SurfaceFormat = VulkanUtils::Surface::QueryFormat(pickedDevice, surface);
+	deviceInfo.SurfaceCapabilities = VulkanUtils::Surface::QueryCapabilities(pickedDevice, surface);
+	deviceInfo.SurfaceTransform = VulkanUtils::Surface::QueryTransform(deviceInfo.SurfaceCapabilities);
+	deviceInfo.CompositeAlpha = VulkanUtils::Swapchain::QueryCompositeAlpha(deviceInfo.SurfaceCapabilities);
 
-	device.QueueFamilyIndices.present = VulkanUtils::Device::GetPresentQueueIndex(
-		pickedDevice, surface, device.QueueFamilyIndices.graphics);
+	deviceInfo.QueueFamilyIndices.present = VulkanUtils::Device::GetPresentQueueIndex(
+		pickedDevice, surface, deviceInfo.QueueFamilyIndices.graphics);
+
+	deviceInfo.PresentMode = VulkanUtils::Swapchain::QueryPresentMode(pickedDevice, surface);
 
 	// TODO: This is not ideal, but Sascha Willems examples assume the same thing (tested on a lot of machines,
 	// therefore it is probably okay). SW examples also are fine with graphics and compute queue being the same
 	// one without getting a second one from that family.
-	assert(device.QueueFamilyIndices.graphics == device.QueueFamilyIndices.present);
+	assert(deviceInfo.QueueFamilyIndices.graphics == deviceInfo.QueueFamilyIndices.present);
 
 	VkQueue graphicsQueue = VulkanFactory::Queue::Get(
-		device.Handle, device.QueueFamilyIndices.graphics);
+		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.graphics);
 
 	VkQueue computeQueue = VulkanFactory::Queue::Get(
-		device.Handle, device.QueueFamilyIndices.compute);
+		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.compute);
+
+	VulkanFactory::Swapchain::SwapchainInfo swapchainInfo;
+	VulkanFactory::Swapchain::Create(windowWidth, windowHeight, surface, deviceInfo, swapchainInfo);
+
+	//=========================== Rendering structures ===============================
+
+	std::vector<VkCommandBuffer> drawCommandBuffers;
+	VulkanFactory::CommandBuffer::AllocatePrimary(
+		deviceInfo.Handle, graphicsCommandPool, drawCommandBuffers, swapchainInfo.Images.size());
+
+	std::vector<VkFence> fences;
+	fences.resize(swapchainInfo.Images.size());
+	for (auto& fence : fences)
+	{
+		fence = VulkanFactory::Fence::Create(deviceInfo.Handle, VK_FENCE_CREATE_SIGNALED_BIT);
+	}
+
+	// TODO: Depth & Stencil.
+
+	// TODO: Render pass.
+
+	// TODO: Pipeline cache.
+
+	// TODO: Framebuffer.
+	
+	// TODO: UI.
+
+	//=========================== Shaders and rendering structures ===================
+
+	// TODO: Shaders.
+
+	// TODO: Storage & Uniform buffers.
+
+	// TODO: Texture target.
+
+	// TODO: Descriptors.
+
+	// TODO: Pipelines.
+
+	// TODO: Compute functionality.
+
+	// TODO: Build command buffers.
 
 	//=========================== Rendering and message loop =========================
 
@@ -229,15 +277,17 @@ int main(int argc, char* argv[])
 	
 	//=========================== Destroying Vulkan objects ==========================
 
+	VulkanFactory::Swapchain::Destroy(deviceInfo, swapchainInfo);
+
 	VulkanFactory::Surface::Destroy(instance, surface);
 	CorePlatform.DeleteWindow(window);
 
-	VulkanFactory::Semaphore::Destroy(device.Handle, presentSemaphore);
-	VulkanFactory::Semaphore::Destroy(device.Handle, renderSemaphore);
+	VulkanFactory::Semaphore::Destroy(deviceInfo.Handle, presentSemaphore);
+	VulkanFactory::Semaphore::Destroy(deviceInfo.Handle, renderSemaphore);
 
-	VulkanFactory::CommandPool::Destroy(device.Handle, graphicsCommandPool);
+	VulkanFactory::CommandPool::Destroy(deviceInfo.Handle, graphicsCommandPool);
 
-	device.Destroy();
+	VulkanFactory::Device::Destroy(deviceInfo);
 	if (enableVulkanDebug)
 	{
 		Debug::ValidationLayers::Shutdown(instance);

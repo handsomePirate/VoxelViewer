@@ -2,9 +2,8 @@
 #include "Common.hpp"
 #include <vector>
 
-class VulkanUtils
+namespace VulkanUtils
 {
-public:
 	class Instance
 	{
 	public:
@@ -25,6 +24,26 @@ public:
 		static VkFormat GetSupportedDepthFormat(VkPhysicalDevice device);
 
 		static uint32_t GetPresentQueueIndex(VkPhysicalDevice device, VkSurfaceKHR surface, uint32_t graphicsIndex);
-		static VkSurfaceFormatKHR QuerySurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR surface);
+	};
+	class Queue
+	{
+	public:
+		static uint32_t GetQueueFamilyIndex(const std::vector<VkQueueFamilyProperties>& queueProperties, VkQueueFlags queueFlags);
+	};
+	class Surface
+	{
+	public:
+		static VkSurfaceFormatKHR QueryFormat(VkPhysicalDevice device, VkSurfaceKHR surface);
+		static VkSurfaceCapabilitiesKHR QueryCapabilities(VkPhysicalDevice device, VkSurfaceKHR surface);
+		static VkExtent2D QueryExtent(uint32_t width, uint32_t height, VkSurfaceCapabilitiesKHR surfaceCapabilities);
+		static VkSurfaceTransformFlagBitsKHR QueryTransform(VkSurfaceCapabilitiesKHR surfaceCapabilities);
+	};
+	class Swapchain
+	{
+	public:
+		static VkPresentModeKHR QueryPresentMode(VkPhysicalDevice device, VkSurfaceKHR surface, bool vSync = false);
+		static uint32_t QueryImageCount(VkSurfaceCapabilitiesKHR surfaceCapabilities);
+		static VkCompositeAlphaFlagBitsKHR QueryCompositeAlpha(VkSurfaceCapabilitiesKHR surfaceCapabilities);
+		static std::vector<VkImage> GetImages(VkDevice device, VkSwapchainKHR swapchain);
 	};
 };

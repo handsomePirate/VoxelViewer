@@ -36,146 +36,88 @@ void VulkanFactory::Instance::Destroy(VkInstance instance)
 	vkDestroyInstance(instance, nullptr);
 }
 
-void VulkanFactory::Device::Init(VkPhysicalDevice physicalDevice)
+void VulkanFactory::Device::Create(
+	VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures& enabledFeatures,
+	std::vector<const char*> extensions, DeviceInfo& output,
+	VkQueueFlags requestedQueueTypes, bool debugMarkersEnabled)
 {
-	PhysicalDevice = physicalDevice;
-	Properties = VulkanUtils::Device::GetPhysicalDeviceProperties(physicalDevice);
-	Features = VulkanUtils::Device::GetPhysicalDeviceFeatures(physicalDevice);
-	MemoryProperties = VulkanUtils::Device::GetPhysicalDeviceMemoryProperties(physicalDevice);
-	QueueFamilyProperties = VulkanUtils::Device::GetQueueFamilyProperties(physicalDevice);
-	DepthFormat = VulkanUtils::Device::GetSupportedDepthFormat(physicalDevice);
+	output.Properties = VulkanUtils::Device::GetPhysicalDeviceProperties(physicalDevice);
+	output.Features = VulkanUtils::Device::GetPhysicalDeviceFeatures(physicalDevice);
+	output.MemoryProperties = VulkanUtils::Device::GetPhysicalDeviceMemoryProperties(physicalDevice);
+	output.QueueFamilyProperties = VulkanUtils::Device::GetQueueFamilyProperties(physicalDevice);
+	output.DepthFormat = VulkanUtils::Device::GetSupportedDepthFormat(physicalDevice);
 
-	assert(DepthFormat != VK_FORMAT_UNDEFINED);
-}
+	assert(output.DepthFormat != VK_FORMAT_UNDEFINED);
 
-void VulkanFactory::Device::Create(VkPhysicalDeviceFeatures& enabledFeatures,
-	std::vector<const char*> extensions, VkQueueFlags requestedQueueTypes, bool debugMarkersEnabled)
-{
-	DebugMarkersEnabled = debugMarkersEnabled;
+	output.DebugMarkersEnabled = debugMarkersEnabled;
 	std::vector<VkDeviceQueueCreateInfo> queueInitializers{};
 
 	// Graphics queue.
 	if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)
 	{
-		auto queueInitializer = GetQueueInitializer(QueueFamilyIndices.graphics, VK_QUEUE_GRAPHICS_BIT);
+		auto queueInitializer = VulkanInitializers::Queue(output.QueueFamilyProperties, VK_QUEUE_GRAPHICS_BIT);
+		output.QueueFamilyIndices.graphics = queueInitializer.queueFamilyIndex;
 		queueInitializers.push_back(queueInitializer);
 	}
 	else
 	{
-		QueueFamilyIndices.graphics = UINT32_MAX;
+		output.QueueFamilyIndices.graphics = UINT32_MAX;
 	}
 
 	// Compute queue.
 	if (requestedQueueTypes & VK_QUEUE_COMPUTE_BIT)
 	{
-		auto queueInitializer = GetQueueInitializer(QueueFamilyIndices.compute, VK_QUEUE_GRAPHICS_BIT);
-		if (QueueFamilyIndices.compute != QueueFamilyIndices.graphics)
+		auto queueInitializer = VulkanInitializers::Queue(output.QueueFamilyProperties, VK_QUEUE_COMPUTE_BIT);
+		output.QueueFamilyIndices.compute = queueInitializer.queueFamilyIndex;
+		if (output.QueueFamilyIndices.compute != output.QueueFamilyIndices.graphics)
 		{
 			queueInitializers.push_back(queueInitializer);
 		}
 	}
 	else
 	{
-		QueueFamilyIndices.compute = QueueFamilyIndices.graphics;
+		output.QueueFamilyIndices.compute = output.QueueFamilyIndices.graphics;
 	}
 
 	// Transfer queue.
 	if (requestedQueueTypes & VK_QUEUE_TRANSFER_BIT)
 	{
-		auto queueInitializer = GetQueueInitializer(QueueFamilyIndices.transfer, VK_QUEUE_TRANSFER_BIT);
-		if (QueueFamilyIndices.transfer != QueueFamilyIndices.graphics &&
-			QueueFamilyIndices.transfer != QueueFamilyIndices.compute)
+		auto queueInitializer = VulkanInitializers::Queue(output.QueueFamilyProperties, VK_QUEUE_TRANSFER_BIT);
+		output.QueueFamilyIndices.transfer = queueInitializer.queueFamilyIndex;
+		if (output.QueueFamilyIndices.transfer != output.QueueFamilyIndices.graphics &&
+			output.QueueFamilyIndices.transfer != output.QueueFamilyIndices.compute)
 		{
 			queueInitializers.push_back(queueInitializer);
 		}
 	}
 	else
 	{
-		QueueFamilyIndices.transfer = QueueFamilyIndices.graphics;
+		output.QueueFamilyIndices.transfer = output.QueueFamilyIndices.graphics;
 	}
 
 	VkDeviceCreateInfo deviceInitializer = VulkanInitializers::Device();
 	deviceInitializer.queueCreateInfoCount = (uint32_t)queueInitializers.size();
 	deviceInitializer.pQueueCreateInfos = queueInitializers.data();
 	deviceInitializer.pEnabledFeatures = &enabledFeatures;
-	EnabledFeatures = enabledFeatures;
+	output.EnabledFeatures = enabledFeatures;
 	if (extensions.size() > 0)
 	{
 		deviceInitializer.enabledExtensionCount = (uint32_t)extensions.size();
 		deviceInitializer.ppEnabledExtensionNames = extensions.data();
 	}
 
-	VkResult result = vkCreateDevice(PhysicalDevice, &deviceInitializer, nullptr, &Handle);
+	VkResult result = vkCreateDevice(physicalDevice, &deviceInitializer, nullptr, &output.Handle);
 
 	if (result != VK_SUCCESS)
 	{
 		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to connect with the graphics driver.");
-		CorePlatform.Quit();
 	}
 }
 
-void VulkanFactory::Device::Destroy()
+void VulkanFactory::Device::Destroy(DeviceInfo& deviceInfo)
 {
 	// TODO: When there is a default command pool, destroy here.
-	vkDestroyDevice(Handle, nullptr);
-}
-
-uint32_t VulkanFactory::Device::GetQueueFamilyIndex(VkQueueFlags queueFlags) const
-{
-	// Dedicated queue for compute.
-	// Try to find a queue family index that supports compute but not graphics.
-	if (queueFlags & VK_QUEUE_COMPUTE_BIT)
-	{
-		for (uint32_t f = 0; f < (uint32_t)QueueFamilyProperties.size(); ++f)
-		{
-			if ((QueueFamilyProperties[f].queueFlags & queueFlags) && 
-				((QueueFamilyProperties[f].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0))
-			{
-				return f;
-				break;
-			}
-		}
-	}
-
-	// Dedicated queue for transfer.
-	// Try to find a queue family index that supports transfer but not graphics or compute.
-	if (queueFlags & VK_QUEUE_TRANSFER_BIT)
-	{
-		for (uint32_t f = 0; f < (uint32_t)QueueFamilyProperties.size(); ++f)
-		{
-			if ((QueueFamilyProperties[f].queueFlags & queueFlags) && 
-				((QueueFamilyProperties[f].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0) && 
-				((QueueFamilyProperties[f].queueFlags & VK_QUEUE_COMPUTE_BIT) == 0))
-			{
-				return f;
-				break;
-			}
-		}
-	}
-
-	// For other queue types or if no separate compute queue is present, return the first one to support the requested flags.
-	for (uint32_t f = 0; f < (uint32_t)QueueFamilyProperties.size(); ++f)
-	{
-		if (QueueFamilyProperties[f].queueFlags & queueFlags)
-		{
-			return f;
-			break;
-		}
-	}
-
-	CoreLogger.Log(Core::LoggerSeverity::Error, "Could not find matching queue family index.");
-	return UINT32_MAX;
-}
-
-VkDeviceQueueCreateInfo VulkanFactory::Device::GetQueueInitializer(uint32_t& index, VkQueueFlags queueType) const
-{
-	const float defaultQueuePriority = 0.f;
-
-	index = GetQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);
-	VkDeviceQueueCreateInfo queueInfo = VulkanInitializers::Queue(defaultQueuePriority);
-	queueInfo.queueFamilyIndex = index;
-
-	return queueInfo;
+	vkDestroyDevice(deviceInfo.Handle, nullptr);
 }
 
 VkCommandPool VulkanFactory::CommandPool::Create(VkDevice device, uint32_t queueIndex, VkCommandPoolCreateFlags flags)
@@ -237,4 +179,101 @@ VkQueue VulkanFactory::Queue::Get(VkDevice device, uint32_t queueFamily, uint32_
 	VkQueue queue;
 	vkGetDeviceQueue(device, queueFamily, queueIndex, &queue);
 	return queue;
+}
+
+void VulkanFactory::Swapchain::Create(
+	uint32_t width, uint32_t height, VkSurfaceKHR surface, const Device::DeviceInfo& deviceInfo,
+	SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo)
+{
+	bool oldSwapchainProvided = oldSwapchainInfo != nullptr ? true : false;
+
+	output.Extent = VulkanUtils::Surface::QueryExtent(width, height, deviceInfo.SurfaceCapabilities);
+
+	uint32_t imageCount = VulkanUtils::Swapchain::QueryImageCount(deviceInfo.SurfaceCapabilities);
+
+	auto swapchainInitializer = VulkanInitializers::Swapchain(output.Extent, surface);
+	swapchainInitializer.imageFormat = deviceInfo.SurfaceFormat.format;
+	swapchainInitializer.imageColorSpace = deviceInfo.SurfaceFormat.colorSpace;
+	swapchainInitializer.compositeAlpha = deviceInfo.CompositeAlpha;
+	swapchainInitializer.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainInitializer.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainInitializer.preTransform = deviceInfo.SurfaceTransform;
+	swapchainInitializer.presentMode = deviceInfo.PresentMode;
+	swapchainInitializer.oldSwapchain = oldSwapchainProvided ? oldSwapchainInfo->Handle : VK_NULL_HANDLE;
+	swapchainInitializer.minImageCount = imageCount;
+
+	// Enable transfer source on swap chain images if supported
+	if (deviceInfo.SurfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+	{
+		swapchainInitializer.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	}
+
+	// Enable transfer destination on swap chain images if supported
+	if (deviceInfo.SurfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+	{
+		swapchainInitializer.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	}
+
+	VkResult result = vkCreateSwapchainKHR(deviceInfo.Handle, &swapchainInitializer, nullptr, &output.Handle);
+
+	if (result != VK_SUCCESS)
+	{
+		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to create swapchain!");
+	}
+
+	if (oldSwapchainProvided)
+	{
+		Destroy(deviceInfo, *oldSwapchainInfo);
+	}
+
+	output.Images = VulkanUtils::Swapchain::GetImages(deviceInfo.Handle, output.Handle);
+	assert(output.Images.size() >= imageCount);
+
+	output.ImageViews.resize(output.Images.size());
+	for (int i = 0; i < output.Images.size(); ++i)
+	{
+		auto colorAttachmentViewInitializer = VulkanInitializers::ColorAttachmentView(
+			output.Images[i], deviceInfo.SurfaceFormat.format);
+
+		vkCreateImageView(deviceInfo.Handle, &colorAttachmentViewInitializer, nullptr, &output.ImageViews[i]);
+	}
+}
+
+void VulkanFactory::Swapchain::Destroy(const Device::DeviceInfo& deviceInfo, SwapchainInfo& swapchainInfo)
+{
+	for (uint32_t i = 0; i < swapchainInfo.ImageViews.size(); i++)
+	{
+		vkDestroyImageView(deviceInfo.Handle, swapchainInfo.ImageViews[i], nullptr);
+	}
+	vkDestroySwapchainKHR(deviceInfo.Handle, swapchainInfo.Handle, nullptr);
+}
+
+void VulkanFactory::CommandBuffer::AllocatePrimary(VkDevice device, VkCommandPool commandPool,
+	std::vector<VkCommandBuffer>& output, uint32_t bufferCount)
+{
+	output.resize(bufferCount);
+
+	auto commandBufferInitializer = VulkanInitializers::CommandBufferAllocation(
+		commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, bufferCount);
+
+	vkAllocateCommandBuffers(device, &commandBufferInitializer, output.data());
+}
+
+VkCommandBuffer VulkanFactory::CommandBuffer::AllocatePrimary(VkDevice device, VkCommandPool commandPool)
+{
+	auto commandBufferInitializer = VulkanInitializers::CommandBufferAllocation(
+		commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(device, &commandBufferInitializer, &commandBuffer);
+}
+
+void VulkanFactory::CommandBuffer::Free(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& buffers)
+{
+	vkFreeCommandBuffers(device, commandPool, buffers.size(), buffers.data());
+}
+
+void VulkanFactory::CommandBuffer::Free(VkDevice device, VkCommandPool commandPool, VkCommandBuffer buffer)
+{
+	vkFreeCommandBuffers(device, commandPool, 1, &buffer);
 }

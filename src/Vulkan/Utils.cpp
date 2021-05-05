@@ -37,7 +37,7 @@ std::vector<VkPhysicalDevice> VulkanUtils::Device::EnumeratePhysicalDevices(VkIn
 	if (result == VK_ERROR_INITIALIZATION_FAILED || deviceCount == 0)
 	{
 		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to find any GPUs with Vulkan support.");
-		CorePlatform.Quit();
+		return {};
 	}
 
 	std::vector<VkPhysicalDevice> devices(deviceCount);
@@ -86,7 +86,7 @@ bool VulkanUtils::Device::CheckExtensionsSupported(VkPhysicalDevice device, cons
 	if (result != VK_SUCCESS || extensionCount == 0)
 	{
 		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to enumerate GPU devices.");
-		CorePlatform.Quit();
+		return false;
 	}
 
 	// Get available extensions.
@@ -199,11 +199,57 @@ uint32_t VulkanUtils::Device::GetPresentQueueIndex(VkPhysicalDevice device, VkSu
 	}
 
 	CoreLogger.Log(Core::LoggerSeverity::Fatal, "Couldn't find a present queue!");
-	CorePlatform.Quit();
 	return 0;
 }
 
-VkSurfaceFormatKHR VulkanUtils::Device::QuerySurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR surface)
+uint32_t VulkanUtils::Queue::GetQueueFamilyIndex(const std::vector<VkQueueFamilyProperties>& queueProperties, VkQueueFlags queueFlags)
+{
+	// Dedicated queue for compute.
+	// Try to find a queue family index that supports compute but not graphics.
+	if (queueFlags & VK_QUEUE_COMPUTE_BIT)
+	{
+		for (uint32_t f = 0; f < (uint32_t)queueProperties.size(); ++f)
+		{
+			if ((queueProperties[f].queueFlags & queueFlags) &&
+				((queueProperties[f].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0))
+			{
+				return f;
+				break;
+			}
+		}
+	}
+
+	// Dedicated queue for transfer.
+	// Try to find a queue family index that supports transfer but not graphics or compute.
+	if (queueFlags & VK_QUEUE_TRANSFER_BIT)
+	{
+		for (uint32_t f = 0; f < (uint32_t)queueProperties.size(); ++f)
+		{
+			if ((queueProperties[f].queueFlags & queueFlags) &&
+				((queueProperties[f].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0) &&
+				((queueProperties[f].queueFlags & VK_QUEUE_COMPUTE_BIT) == 0))
+			{
+				return f;
+				break;
+			}
+		}
+	}
+
+	// For other queue types or if no separate compute queue is present, return the first one to support the requested flags.
+	for (uint32_t f = 0; f < (uint32_t)queueProperties.size(); ++f)
+	{
+		if (queueProperties[f].queueFlags & queueFlags)
+		{
+			return f;
+			break;
+		}
+	}
+
+	CoreLogger.Log(Core::LoggerSeverity::Error, "Could not find matching queue family index.");
+	return UINT32_MAX;
+}
+
+VkSurfaceFormatKHR VulkanUtils::Surface::QueryFormat(VkPhysicalDevice device, VkSurfaceKHR surface)
 {
 	// Get list of supported surface formats
 	uint32_t formatCount;
@@ -242,4 +288,119 @@ VkSurfaceFormatKHR VulkanUtils::Device::QuerySurfaceFormat(VkPhysicalDevice devi
 		surfaceFormat.colorSpace = surfaceFormats[0].colorSpace;
 	}
 	return surfaceFormat;
+}
+
+VkSurfaceCapabilitiesKHR VulkanUtils::Surface::QueryCapabilities(VkPhysicalDevice device, VkSurfaceKHR surface)
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &capabilities);
+	return capabilities;
+}
+
+VkExtent2D VulkanUtils::Surface::QueryExtent(uint32_t width, uint32_t height, VkSurfaceCapabilitiesKHR surfaceCapabilities)
+{
+	if (surfaceCapabilities.currentExtent.width != UINT32_MAX)
+		return surfaceCapabilities.currentExtent;
+
+	VkExtent2D actualExtent = { (uint32_t)(width), (uint32_t)(height) };
+
+	actualExtent.width = std::max<uint32_t>(surfaceCapabilities.minImageExtent.width,
+		std::min<uint32_t>(surfaceCapabilities.maxImageExtent.width, actualExtent.width));
+	actualExtent.height = std::max<uint32_t>(surfaceCapabilities.minImageExtent.height,
+		std::min<uint32_t>(surfaceCapabilities.maxImageExtent.height, actualExtent.height));
+
+	return actualExtent;
+}
+
+VkSurfaceTransformFlagBitsKHR VulkanUtils::Surface::QueryTransform(VkSurfaceCapabilitiesKHR surfaceCapabilities)
+{
+	VkSurfaceTransformFlagBitsKHR transform;
+	if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+	{
+		// We prefer a non-rotated transform
+		transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	}
+	else
+	{
+		transform = surfaceCapabilities.currentTransform;
+	}
+
+	return transform;
+}
+
+VkPresentModeKHR VulkanUtils::Swapchain::QueryPresentMode(VkPhysicalDevice device, VkSurfaceKHR surface, bool vSync)
+{
+	if (vSync)
+	{
+		return VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	uint32_t presentModeCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+	std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface,
+		&presentModeCount, presentModes.data());
+
+	VkPresentModeKHR bestMode = VK_PRESENT_MODE_FIFO_KHR;
+
+	for (auto&& presentMode : presentModes)
+	{
+		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			return presentMode;
+		}
+		if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+		{
+			bestMode = presentMode;
+		}
+	}
+
+	return bestMode;
+}
+
+uint32_t VulkanUtils::Swapchain::QueryImageCount(VkSurfaceCapabilitiesKHR surfaceCapabilities)
+{
+	uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+	if ((surfaceCapabilities.maxImageCount > 0) && (imageCount > surfaceCapabilities.maxImageCount))
+	{
+		imageCount = surfaceCapabilities.maxImageCount;
+	}
+	return imageCount;
+}
+
+VkCompositeAlphaFlagBitsKHR VulkanUtils::Swapchain::QueryCompositeAlpha(VkSurfaceCapabilitiesKHR surfaceCapabilities)
+{
+	std::vector<VkCompositeAlphaFlagBitsKHR> compositeAlphaFlags =
+	{
+		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+	};
+
+	for (auto& compositeAlphaFlag : compositeAlphaFlags)
+	{
+		if (surfaceCapabilities.supportedCompositeAlpha & compositeAlphaFlag)
+		{
+			return compositeAlphaFlag;
+		};
+	}
+
+	return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+}
+
+std::vector<VkImage> VulkanUtils::Swapchain::GetImages(VkDevice device, VkSwapchainKHR swapchain)
+{
+	uint32_t imageCount;
+	VkResult result = vkGetSwapchainImagesKHR(device, swapchain, &imageCount, NULL);
+	assert(result == VK_SUCCESS);
+
+	// Get the swap chain images
+	std::vector<VkImage> images;
+	images.resize(imageCount);
+	result = vkGetSwapchainImagesKHR(device, swapchain, &imageCount, images.data());
+	assert(result == VK_SUCCESS);
+
+	return images;
 }
