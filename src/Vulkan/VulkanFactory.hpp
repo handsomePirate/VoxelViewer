@@ -90,13 +90,16 @@ namespace VulkanFactory
 	public:
 		struct SwapchainInfo;
 
-		static void Create(uint32_t width, uint32_t height, VkSurfaceKHR surface,
+		static void Create(uint32_t Width, uint32_t Height, VkSurfaceKHR surface,
 			const Device::DeviceInfo& deviceInfo, SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo = nullptr);
 		static void Destroy(const Device::DeviceInfo& deviceInfo, SwapchainInfo& swapchainInfo);
 
 		struct SwapchainInfo
 		{
 			VkSwapchainKHR Handle;
+
+			uint32_t Width;
+			uint32_t Height;
 
 			std::vector<VkImage> Images;
 			std::vector<VkImageView> ImageViews;
@@ -119,7 +122,7 @@ namespace VulkanFactory
 		struct ImageInfo;
 
 		static void Create(const Device::DeviceInfo& deviceInfo, VkFormat format,
-			uint32_t width, uint32_t height, ImageInfo& output);
+			uint32_t Width, uint32_t Height, ImageInfo& output);
 		static void Destroy(VkDevice device, ImageInfo& imageInfo);
 
 		struct ImageInfo
@@ -138,14 +141,36 @@ namespace VulkanFactory
 	class Framebuffer
 	{
 	public:
-		static VkFramebuffer Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
+		static VkFramebuffer Create(VkDevice device, VkRenderPass renderPass, uint32_t Width, uint32_t Height,
 			VkImageView colorView, VkImageView depthView);
 		static void Destroy(VkDevice device, VkFramebuffer framebuffer);
+	};
+	class Descriptor
+	{
+	public:
+		static VkDescriptorSetLayout CreateSetLayout(VkDevice device);
+		static void DestroySetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout);
+		static VkDescriptorPool CreatePool();
+		static VkDescriptorSet CreateSet();
 	};
 	class Pipeline
 	{
 	public:
+		static VkPipeline CreateGraphics(VkDevice device, VkRenderPass renderPass, const Swapchain::SwapchainInfo& swapchain,
+			VkShaderModule vertexShader, VkShaderModule fragmentShader, VkPipelineLayout pipelineLayout,
+			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
+		static void Destroy(VkDevice device, VkPipeline pipeline);
+
+		static VkPipelineLayout CreateLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout);
+		static void DestroyLayout(VkDevice device, VkPipelineLayout pipelineLayout);
+
 		static VkPipelineCache CreateCache(VkDevice device);
 		static void DestroyCache(VkDevice device, VkPipelineCache pipelineCache);
+	};
+	class Shader
+	{
+	public:
+		static VkShaderModule Create(VkDevice device, const std::string& path);
+		static void Destroy(VkDevice device, VkShaderModule shader);
 	};
 };

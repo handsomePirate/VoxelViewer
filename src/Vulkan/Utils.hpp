@@ -37,7 +37,7 @@ namespace VulkanUtils
 	public:
 		static VkSurfaceFormatKHR QueryFormat(VkPhysicalDevice device, VkSurfaceKHR surface);
 		static VkSurfaceCapabilitiesKHR QueryCapabilities(VkPhysicalDevice device, VkSurfaceKHR surface);
-		static VkExtent2D QueryExtent(uint32_t width, uint32_t height, VkSurfaceCapabilitiesKHR surfaceCapabilities);
+		static VkExtent2D QueryExtent(uint32_t Width, uint32_t Height, VkSurfaceCapabilitiesKHR surfaceCapabilities);
 		static VkSurfaceTransformFlagBitsKHR QueryTransform(VkSurfaceCapabilitiesKHR surfaceCapabilities);
 	};
 	class Swapchain
@@ -63,5 +63,28 @@ namespace VulkanUtils
 	public:
 		static uint32_t GetTypeIndex(VkPhysicalDeviceMemoryProperties memoryProperties,
 			uint32_t filter, VkMemoryPropertyFlags requiredProperties);
+	};
+	class Pipeline
+	{
+	public:
+		static inline VkViewport CreateViewport(uint32_t Width, uint32_t Height)
+		{
+			VkViewport viewport;
+			viewport.x = 0;
+			viewport.y = 0;
+			viewport.width = (float)Width;
+			viewport.height = (float)Height;
+			viewport.minDepth = 0;
+			viewport.maxDepth = 1;
+			return viewport;
+		}
+
+		static inline VkRect2D CreateScissor(VkExtent2D extent)
+		{
+			VkRect2D scissor;
+			scissor.offset = { 0, 0 };
+			scissor.extent = extent;
+			return scissor;
+		}
 	};
 };

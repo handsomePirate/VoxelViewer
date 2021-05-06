@@ -297,12 +297,12 @@ VkSurfaceCapabilitiesKHR VulkanUtils::Surface::QueryCapabilities(VkPhysicalDevic
 	return capabilities;
 }
 
-VkExtent2D VulkanUtils::Surface::QueryExtent(uint32_t width, uint32_t height, VkSurfaceCapabilitiesKHR surfaceCapabilities)
+VkExtent2D VulkanUtils::Surface::QueryExtent(uint32_t Width, uint32_t Height, VkSurfaceCapabilitiesKHR surfaceCapabilities)
 {
 	if (surfaceCapabilities.currentExtent.width != UINT32_MAX)
 		return surfaceCapabilities.currentExtent;
 
-	VkExtent2D actualExtent = { (uint32_t)(width), (uint32_t)(height) };
+	VkExtent2D actualExtent = { (uint32_t)(Width), (uint32_t)(Height) };
 
 	actualExtent.width = std::max<uint32_t>(surfaceCapabilities.minImageExtent.width,
 		std::min<uint32_t>(surfaceCapabilities.maxImageExtent.width, actualExtent.width));

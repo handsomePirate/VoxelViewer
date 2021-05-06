@@ -169,4 +169,145 @@ namespace VulkanInitializers
 		pipelineCacheInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 		return pipelineCacheInfo;
 	}
+
+	inline VkShaderModuleCreateInfo Shader()
+	{
+		VkShaderModuleCreateInfo shaderModuleCreateInfo{};
+		shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		return shaderModuleCreateInfo;
+	}
+
+	inline VkPipelineInputAssemblyStateCreateInfo PipelineInputAssemblyState(VkPrimitiveTopology primitiveTopology,
+		VkBool32 primitiveRestartEnable, VkPipelineInputAssemblyStateCreateFlags flags = 0)
+	{
+		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyCreateInfo{};
+		pipelineInputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		pipelineInputAssemblyCreateInfo.topology = primitiveTopology;
+		pipelineInputAssemblyCreateInfo.flags = flags;
+		pipelineInputAssemblyCreateInfo.primitiveRestartEnable = primitiveRestartEnable;
+		return pipelineInputAssemblyCreateInfo;
+	}
+
+	inline VkPipelineRasterizationStateCreateInfo PipelineRasterizationState(VkPolygonMode polygonMode,
+		VkCullModeFlags cullMode, VkFrontFace frontFace, VkPipelineRasterizationStateCreateFlags flags = 0)
+	{
+		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo{};
+		pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		pipelineRasterizationStateCreateInfo.polygonMode = polygonMode;
+		pipelineRasterizationStateCreateInfo.cullMode = cullMode;
+		pipelineRasterizationStateCreateInfo.frontFace = frontFace;
+		pipelineRasterizationStateCreateInfo.flags = flags;
+		pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
+		return pipelineRasterizationStateCreateInfo;
+	}
+
+	inline VkPipelineColorBlendAttachmentState PipelineColorBlendAttachment(VkColorComponentFlags colorWriteMask,
+		VkBool32 blendEnable)
+	{
+		VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState{};
+		pipelineColorBlendAttachmentState.colorWriteMask = colorWriteMask;
+		pipelineColorBlendAttachmentState.blendEnable = blendEnable;
+		return pipelineColorBlendAttachmentState;
+	}
+
+	inline VkPipelineColorBlendStateCreateInfo PipelineColorBlendState(
+		VkPipelineColorBlendAttachmentState* pipelineColorBlendAttachments, uint32_t blendAttachmentCount)
+	{
+		VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo{};
+		pipelineColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		pipelineColorBlendStateCreateInfo.attachmentCount = blendAttachmentCount;
+		pipelineColorBlendStateCreateInfo.pAttachments = pipelineColorBlendAttachments;
+		return pipelineColorBlendStateCreateInfo;
+	}
+
+	inline VkPipelineDepthStencilStateCreateInfo PipelineDepthStencilState(VkBool32 depthTestEnable,
+		VkBool32 depthWriteEnable, VkCompareOp depthCompareOperation)
+	{
+		VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo{};
+		pipelineDepthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		pipelineDepthStencilStateCreateInfo.depthTestEnable = depthTestEnable;
+		pipelineDepthStencilStateCreateInfo.depthWriteEnable = depthWriteEnable;
+		pipelineDepthStencilStateCreateInfo.depthCompareOp = depthCompareOperation;
+		return pipelineDepthStencilStateCreateInfo;
+	}
+
+	inline VkPipelineViewportStateCreateInfo PipelineViewportState(VkViewport viewport, VkRect2D scissor,
+		VkPipelineViewportStateCreateFlags flags = 0)
+	{
+		VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo{};
+		pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		pipelineViewportStateCreateInfo.viewportCount = 1;
+		pipelineViewportStateCreateInfo.pViewports = &viewport;
+		pipelineViewportStateCreateInfo.scissorCount = 1;
+		pipelineViewportStateCreateInfo.pScissors = &scissor;
+		pipelineViewportStateCreateInfo.flags = flags;
+		return pipelineViewportStateCreateInfo;
+	}
+
+	inline VkPipelineMultisampleStateCreateInfo PipelineMultisampleState(VkSampleCountFlagBits sampleCount,
+		VkPipelineMultisampleStateCreateFlags flags = 0)
+	{
+		VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo{};
+		pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		pipelineMultisampleStateCreateInfo.rasterizationSamples = sampleCount;
+		pipelineMultisampleStateCreateInfo.flags = flags;
+		pipelineMultisampleStateCreateInfo.minSampleShading = 0.3f;
+		return pipelineMultisampleStateCreateInfo;
+	}
+
+	inline VkPipelineDynamicStateCreateInfo PipelineDynamicState(VkDynamicState* dynamicStates, uint32_t stateCount)
+	{
+		VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo{};
+		pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		pipelineDynamicStateCreateInfo.dynamicStateCount = stateCount;
+		pipelineDynamicStateCreateInfo.pDynamicStates = dynamicStates;
+		return pipelineDynamicStateCreateInfo;
+	}
+
+	inline VkPipelineShaderStageCreateInfo PipelineShaderStage(VkShaderModule shader, VkShaderStageFlagBits stage)
+	{
+		VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo{};
+		pipelineShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		pipelineShaderStageCreateInfo.module = shader;
+		pipelineShaderStageCreateInfo.pName = "main";
+		pipelineShaderStageCreateInfo.stage = stage;
+		return pipelineShaderStageCreateInfo;
+	}
+
+	inline VkGraphicsPipelineCreateInfo GraphicsPipeline()
+	{
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
+		graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		return graphicsPipelineCreateInfo;
+	}
+
+	inline VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(VkDescriptorType type,
+		VkShaderStageFlags stageFlags, uint32_t binding, uint32_t descriptorCount = 1)
+	{
+		VkDescriptorSetLayoutBinding descriptorSetLayoutBinding{};
+		descriptorSetLayoutBinding.descriptorType = type;
+		descriptorSetLayoutBinding.stageFlags = stageFlags;
+		descriptorSetLayoutBinding.binding = binding;
+		descriptorSetLayoutBinding.descriptorCount = descriptorCount;
+		return descriptorSetLayoutBinding;
+	}
+
+	inline VkDescriptorSetLayoutCreateInfo DescriptorSetLayout(VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings,
+		uint32_t layoutCount)
+	{
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorSetLayoutCreateInfo.bindingCount = layoutCount;
+		descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings;
+		return descriptorSetLayoutCreateInfo;
+	}
+
+	inline VkPipelineLayoutCreateInfo PipelineLayout(VkDescriptorSetLayout* descriptorSetLayouts, uint32_t layoutCount)
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutCreateInfo.setLayoutCount = layoutCount;
+		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts;
+		return pipelineLayoutCreateInfo;
+	}
 };

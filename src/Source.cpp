@@ -202,7 +202,7 @@ int main(int argc, char* argv[])
 
 	uint32_t windowWidth = 640;
 	uint32_t windowHeight = 480;
-	Core::Window* window = CorePlatform.GetNewWindow("VoxelViewer", 50, 50, windowWidth, windowHeight);
+	Core::Window* window = CorePlatform.GetNewWindow(CoreFilesystem.ExecutableName().c_str(), 50, 50, windowWidth, windowHeight);
 	VkSurfaceKHR surface = VulkanFactory::Surface::Create(instance, window->GetHandle());
 
 	deviceInfo.SurfaceFormat = VulkanUtils::Surface::QueryFormat(pickedDevice, surface);
@@ -251,7 +251,6 @@ int main(int argc, char* argv[])
 
 	VkPipelineCache pipelineCache = VulkanFactory::Pipeline::CreateCache(deviceInfo.Handle);
 
-	// TODO: Framebuffer.
 	std::vector<VkFramebuffer> framebuffers;
 	framebuffers.resize(swapchainInfo.Images.size());
 	for (int f = 0; f < framebuffers.size(); ++f)
@@ -264,15 +263,22 @@ int main(int argc, char* argv[])
 
 	//=========================== Shaders and rendering structures ===================
 
-	// TODO: Shaders.
+	std::string vertexShaderPath = CoreFilesystem.GetAbsolutePath("simple.vert.glsl.spv");
+	VkShaderModule vertexShader = VulkanFactory::Shader::Create(deviceInfo.Handle, vertexShaderPath);
+	std::string fragmentShaderPath = CoreFilesystem.GetAbsolutePath("simple.frag.glsl.spv");
+	VkShaderModule fragmentShader = VulkanFactory::Shader::Create(deviceInfo.Handle, fragmentShaderPath);
 
 	// TODO: Storage & Uniform buffers.
 
 	// TODO: Texture target.
 
 	// TODO: Descriptors.
+	VkDescriptorSetLayout descriptorSetLayout = VulkanFactory::Descriptor::CreateSetLayout(deviceInfo.Handle);
 
 	// TODO: Pipelines.
+	VkPipelineLayout pipelineLayout = VulkanFactory::Pipeline::CreateLayout(deviceInfo.Handle, descriptorSetLayout);
+	VkPipeline pipeline = VulkanFactory::Pipeline::CreateGraphics(deviceInfo.Handle, renderPass, swapchainInfo,
+		vertexShader, fragmentShader, pipelineLayout, pipelineCache);
 
 	// TODO: Compute functionality.
 
@@ -286,6 +292,14 @@ int main(int argc, char* argv[])
 	}
 	
 	//=========================== Destroying Vulkan objects ==========================
+
+	VulkanFactory::Pipeline::Destroy(deviceInfo.Handle, pipeline);
+	VulkanFactory::Pipeline::DestroyLayout(deviceInfo.Handle, pipelineLayout);
+
+	VulkanFactory::Descriptor::DestroySetLayout(deviceInfo.Handle, descriptorSetLayout);
+
+	VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
+	VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
 
 	for (auto& framebuffer : framebuffers)
 	{

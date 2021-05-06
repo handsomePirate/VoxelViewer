@@ -182,12 +182,12 @@ VkQueue VulkanFactory::Queue::Get(VkDevice device, uint32_t queueFamily, uint32_
 }
 
 void VulkanFactory::Swapchain::Create(
-	uint32_t width, uint32_t height, VkSurfaceKHR surface, const Device::DeviceInfo& deviceInfo,
+	uint32_t Width, uint32_t Height, VkSurfaceKHR surface, const Device::DeviceInfo& deviceInfo,
 	SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo)
 {
 	bool oldSwapchainProvided = oldSwapchainInfo != nullptr ? true : false;
 
-	output.Extent = VulkanUtils::Surface::QueryExtent(width, height, deviceInfo.SurfaceCapabilities);
+	output.Extent = VulkanUtils::Surface::QueryExtent(Width, Height, deviceInfo.SurfaceCapabilities);
 
 	uint32_t imageCount = VulkanUtils::Swapchain::QueryImageCount(deviceInfo.SurfaceCapabilities);
 
@@ -281,10 +281,10 @@ void VulkanFactory::CommandBuffer::Free(VkDevice device, VkCommandPool commandPo
 }
 
 void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo, VkFormat format,
-	uint32_t width, uint32_t height, ImageInfo& output)
+	uint32_t Width, uint32_t Height, ImageInfo& output)
 {
 	auto imageInitializer = VulkanInitializers::Image(format);
-	imageInitializer.extent = { width, height, 1 };
+	imageInitializer.extent = { Width, Height, 1 };
 	imageInitializer.mipLevels = 1;
 	imageInitializer.arrayLayers = 1;
 	imageInitializer.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -398,7 +398,7 @@ void VulkanFactory::RenderPass::Destroy(VkDevice device, VkRenderPass renderPass
 	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
-VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
+VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass renderPass, uint32_t Width, uint32_t Height,
 	VkImageView colorView, VkImageView depthView)
 {
 	const int attachmentCount = 2;
@@ -410,8 +410,8 @@ VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass r
 	framebufferInitializer.renderPass = renderPass;
 	framebufferInitializer.attachmentCount = attachmentCount;
 	framebufferInitializer.pAttachments = attachments;
-	framebufferInitializer.width = width;
-	framebufferInitializer.height = height;
+	framebufferInitializer.width = Width;
+	framebufferInitializer.height = Height;
 	framebufferInitializer.layers = 1;
 
 	VkFramebuffer framebuffer;
@@ -426,6 +426,116 @@ void VulkanFactory::Framebuffer::Destroy(VkDevice device, VkFramebuffer framebuf
 	vkDestroyFramebuffer(device, framebuffer, nullptr);
 }
 
+VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(VkDevice device)
+{
+	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
+	{
+		VulkanInitializers::DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			VK_SHADER_STAGE_FRAGMENT_BIT, 0)
+	};
+
+	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = VulkanInitializers::DescriptorSetLayout(
+		setLayoutBindings.data(), (uint32_t)setLayoutBindings.size());
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkResult result = vkCreateDescriptorSetLayout(device, &descriptorLayoutCreateInfo, nullptr, &descriptorSetLayout);
+	assert(result == VK_SUCCESS);
+	return descriptorSetLayout;
+}
+
+void VulkanFactory::Descriptor::DestroySetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
+{
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+}
+
+VkPipeline VulkanFactory::Pipeline::CreateGraphics(VkDevice device, VkRenderPass renderPass,
+	const Swapchain::SwapchainInfo& swapchain, VkShaderModule vertexShader, VkShaderModule fragmentShader, 
+	VkPipelineLayout pipelineLayout, VkPipelineCache pipelineCache)
+{
+	auto inputAssemblyStateInitializer = VulkanInitializers::PipelineInputAssemblyState(
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+
+	auto rasterizationStateInitializer = VulkanInitializers::PipelineRasterizationState(
+		VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+
+	auto blendAttachmentStateInitializer = VulkanInitializers::PipelineColorBlendAttachment(
+		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+		VK_FALSE);
+
+	auto colorBlendStateInitializer = VulkanInitializers::PipelineColorBlendState(
+		&blendAttachmentStateInitializer, 1);
+
+	auto depthStencilStateInitializer = VulkanInitializers::PipelineDepthStencilState(
+		VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
+
+	VkViewport viewport = VulkanUtils::Pipeline::CreateViewport(swapchain.Width, swapchain.Height);
+	VkRect2D scissor = VulkanUtils::Pipeline::CreateScissor(swapchain.Extent);
+	auto viewportStateInitializer = VulkanInitializers::PipelineViewportState(viewport, scissor);
+
+	auto multisampleStateInitializer = VulkanInitializers::PipelineMultisampleState(
+		VK_SAMPLE_COUNT_1_BIT);
+
+	std::vector<VkDynamicState> dynamicStateEnables = 
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	auto dynamicStateInitializer = VulkanInitializers::PipelineDynamicState(dynamicStateEnables.data(),
+		(uint32_t)dynamicStateEnables.size());
+
+	// Display pipeline
+	const int shaderCount = 2;
+	VkPipelineShaderStageCreateInfo shaderStages[shaderCount];
+	shaderStages[0] = VulkanInitializers::PipelineShaderStage(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = VulkanInitializers::PipelineShaderStage(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT);
+
+	// TODO: Put into initializers.
+	VkPipelineVertexInputStateCreateInfo emptyInputState{};
+	emptyInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	emptyInputState.vertexAttributeDescriptionCount = 0;
+	emptyInputState.pVertexAttributeDescriptions = nullptr;
+	emptyInputState.vertexBindingDescriptionCount = 0;
+	emptyInputState.pVertexBindingDescriptions = nullptr;
+
+	auto pipelineCreateInitializer = VulkanInitializers::GraphicsPipeline();
+	pipelineCreateInitializer.renderPass = renderPass;
+	pipelineCreateInitializer.layout = pipelineLayout;
+	pipelineCreateInitializer.pVertexInputState = &emptyInputState;
+	pipelineCreateInitializer.pInputAssemblyState = &inputAssemblyStateInitializer;
+	pipelineCreateInitializer.pRasterizationState = &rasterizationStateInitializer;
+	pipelineCreateInitializer.pColorBlendState = &colorBlendStateInitializer;
+	pipelineCreateInitializer.pMultisampleState = &multisampleStateInitializer;
+	pipelineCreateInitializer.pViewportState = &viewportStateInitializer;
+	pipelineCreateInitializer.pDepthStencilState = &depthStencilStateInitializer;
+	pipelineCreateInitializer.pDynamicState = &dynamicStateInitializer;
+	pipelineCreateInitializer.stageCount = shaderCount;
+	pipelineCreateInitializer.pStages = shaderStages;
+	pipelineCreateInitializer.renderPass = renderPass;
+	
+	VkPipeline pipeline;
+	vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInitializer, nullptr, &pipeline);
+	return pipeline;
+}
+
+void VulkanFactory::Pipeline::Destroy(VkDevice device, VkPipeline pipeline)
+{
+	vkDestroyPipeline(device, pipeline, nullptr);
+}
+
+VkPipelineLayout VulkanFactory::Pipeline::CreateLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
+{
+	auto pipelineLayoutInitializer = VulkanInitializers::PipelineLayout(&descriptorSetLayout, 1);
+
+	VkPipelineLayout pipelineLayout;
+	vkCreatePipelineLayout(device, &pipelineLayoutInitializer, nullptr, &pipelineLayout);
+	return pipelineLayout;
+}
+
+void VulkanFactory::Pipeline::DestroyLayout(VkDevice device, VkPipelineLayout pipelineLayout)
+{
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+}
+
 VkPipelineCache VulkanFactory::Pipeline::CreateCache(VkDevice device)
 {
 	auto pipelineCacheInitializer = VulkanInitializers::PipelineCache();
@@ -437,4 +547,41 @@ VkPipelineCache VulkanFactory::Pipeline::CreateCache(VkDevice device)
 void VulkanFactory::Pipeline::DestroyCache(VkDevice device, VkPipelineCache pipelineCache)
 {
 	vkDestroyPipelineCache(device, pipelineCache, nullptr);
+}
+
+VkShaderModule VulkanFactory::Shader::Create(VkDevice device, const std::string& path)
+{
+	std::vector<uint8_t> byteCode;
+
+	{
+		FILE* f;
+		fopen_s(&f, path.c_str(), "rb");
+
+		if (!f)
+		{
+			CoreLogger.Log(Core::LoggerSeverity::Error, "Failed to load shader code.");
+			return VK_NULL_HANDLE;
+		}
+
+		fseek(f, 0, SEEK_END);
+		const size_t fileSize = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		byteCode.resize(fileSize);
+		fread_s(byteCode.data(), fileSize, 1, fileSize, f);
+		fclose(f);
+	}
+
+	auto shaderInitializer = VulkanInitializers::Shader();
+	shaderInitializer.codeSize = (uint32_t)byteCode.size();
+	shaderInitializer.pCode = (uint32_t* const)byteCode.data();
+
+	VkShaderModule shaderModule;
+	vkCreateShaderModule(device, &shaderInitializer, nullptr, &shaderModule);
+
+	return shaderModule;
+}
+
+void VulkanFactory::Shader::Destroy(VkDevice device, VkShaderModule shader)
+{
+	vkDestroyShaderModule(device, shader, nullptr);
 }

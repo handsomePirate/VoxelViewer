@@ -30,7 +30,7 @@ namespace Core
 
 		static void OutputMessage(const char* message, uint8_t color);
 		static void Sleep(uint32_t ms);
-		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t width, uint32_t height) const;
+		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t Width, uint32_t Height) const;
 		void DeleteWindow(Window* window) const;
 
 		static uint64_t GetProgramID();
@@ -50,6 +50,7 @@ namespace Core
 		Filesystem();
 		~Filesystem();
 
+		std::string ExecutableName() const;
 		std::string GetAbsolutePath(const std::string& relativePath) const;
 		bool FileExists(const std::string& path) const;
 

@@ -149,7 +149,7 @@ void Core::Platform::Sleep(uint32_t ms)
 }
 
 Core::Window* Core::Platform::GetNewWindow(const char* name,
-    uint32_t x, uint32_t y, uint32_t width, uint32_t height) const
+    uint32_t x, uint32_t y, uint32_t Width, uint32_t Height) const
 {
     uint32_t windowStyle = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
     uint32_t windowExStyle = WS_EX_APPWINDOW;
@@ -163,8 +163,8 @@ Core::Window* Core::Platform::GetNewWindow(const char* name,
 
     uint32_t windowX = x + borderRectangle.left;
     uint32_t windowY = y + borderRectangle.top;
-    uint32_t windowWidth = width + borderRectangle.right - borderRectangle.left;
-    uint32_t windowHeight = height + borderRectangle.bottom - borderRectangle.top;
+    uint32_t windowWidth = Width + borderRectangle.right - borderRectangle.left;
+    uint32_t windowHeight = Height + borderRectangle.bottom - borderRectangle.top;
 
     HWND handle = CreateWindowExA(
         windowExStyle, windowClassName, name, windowStyle,
@@ -342,6 +342,7 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
 struct Core::Filesystem::Private
 {
     std::filesystem::path Root;
+    std::filesystem::path ExecutableName;
 };
 
 Core::Filesystem::Filesystem()
@@ -351,6 +352,7 @@ Core::Filesystem::Filesystem()
     char pathBuffer[MAX_PATH_LENGTH];
     int bytes = GetModuleFileNameA(NULL, pathBuffer, MAX_PATH_LENGTH);
     p_->Root = std::filesystem::path(pathBuffer);
+    p_->ExecutableName = p_->Root.filename();
     p_->Root.remove_filename();
 }
 
@@ -359,12 +361,17 @@ Core::Filesystem::~Filesystem()
     delete p_;
 }
 
+std::string Core::Filesystem::ExecutableName() const
+{
+    return p_->ExecutableName.replace_extension().string();
+}
+
 std::string Core::Filesystem::GetAbsolutePath(const std::string& relativePath) const
 {
     std::filesystem::path relative(relativePath);
     std::filesystem::path absolute = p_->Root;
     absolute += relative;
-    return absolute.make_preferred().string();
+    return absolute.lexically_normal().make_preferred().string();
 }
 
 bool Core::Filesystem::FileExists(const std::string& path) const
