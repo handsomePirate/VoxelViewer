@@ -3,6 +3,7 @@
 
 #ifdef PLATFORM_WINDOWS
 #include <Windows.h>
+#include <filesystem>
 
 LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam);
 
@@ -336,6 +337,41 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
     }
 
     return DefWindowProcA(hwnd, msg, wParam, lParam);
+}
+
+struct Core::Filesystem::Private
+{
+    std::filesystem::path Root;
+};
+
+Core::Filesystem::Filesystem()
+    : p_(new Filesystem::Private)
+{
+    const unsigned long MAX_PATH_LENGTH = 256;
+    char pathBuffer[MAX_PATH_LENGTH];
+    int bytes = GetModuleFileNameA(NULL, pathBuffer, MAX_PATH_LENGTH);
+    p_->Root = std::filesystem::path(pathBuffer);
+    p_->Root.remove_filename();
+}
+
+Core::Filesystem::~Filesystem()
+{
+    delete p_;
+}
+
+std::string Core::Filesystem::GetAbsolutePath(const std::string& relativePath) const
+{
+    std::filesystem::path relative(relativePath);
+    std::filesystem::path absolute = p_->Root;
+    absolute += relative;
+    return absolute.make_preferred().string();
+}
+
+bool Core::Filesystem::FileExists(const std::string& path) const
+{
+    std::filesystem::path myPath(path);
+    std::filesystem::path absolutePath = myPath.is_relative() ? GetAbsolutePath(path) : myPath;
+    return std::filesystem::exists(absolutePath);
 }
 
 #endif

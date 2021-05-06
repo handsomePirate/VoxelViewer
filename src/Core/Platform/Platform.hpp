@@ -44,6 +44,20 @@ namespace Core
 		Private* p_;
 	};
 
+	class Filesystem
+	{
+	public:
+		Filesystem();
+		~Filesystem();
+
+		std::string GetAbsolutePath(const std::string& relativePath) const;
+		bool FileExists(const std::string& path) const;
+
+	private:
+		struct Private;
+		Private* p_;
+	};
+
 	enum class Key
 	{
 		Enter,
@@ -65,3 +79,4 @@ namespace Core
 }
 
 #define CorePlatform (::Core::Singleton<::Core::Platform>::GetInstance())
+#define CoreFilesystem (::Core::Singleton<::Core::Filesystem>::GetInstance())
