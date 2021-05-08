@@ -149,7 +149,7 @@ void Core::Platform::Sleep(uint32_t ms)
 }
 
 Core::Window* Core::Platform::GetNewWindow(const char* name,
-    uint32_t x, uint32_t y, uint32_t Width, uint32_t Height) const
+    uint32_t x, uint32_t y, uint32_t width, uint32_t height) const
 {
     uint32_t windowStyle = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
     uint32_t windowExStyle = WS_EX_APPWINDOW;
@@ -163,8 +163,8 @@ Core::Window* Core::Platform::GetNewWindow(const char* name,
 
     uint32_t windowX = x + borderRectangle.left;
     uint32_t windowY = y + borderRectangle.top;
-    uint32_t windowWidth = Width + borderRectangle.right - borderRectangle.left;
-    uint32_t windowHeight = Height + borderRectangle.bottom - borderRectangle.top;
+    uint32_t windowWidth = width + borderRectangle.right - borderRectangle.left;
+    uint32_t windowHeight = height + borderRectangle.bottom - borderRectangle.top;
 
     HWND handle = CreateWindowExA(
         windowExStyle, windowClassName, name, windowStyle,

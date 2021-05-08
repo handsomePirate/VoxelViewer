@@ -30,7 +30,7 @@ namespace Core
 
 		static void OutputMessage(const char* message, uint8_t color);
 		static void Sleep(uint32_t ms);
-		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t Width, uint32_t Height) const;
+		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t width, uint32_t height) const;
 		void DeleteWindow(Window* window) const;
 
 		static uint64_t GetProgramID();
