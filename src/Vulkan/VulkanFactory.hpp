@@ -26,12 +26,14 @@ namespace VulkanFactory
 		struct DeviceInfo
 		{
 			VkDevice Handle = VK_NULL_HANDLE;
+			VkPhysicalDevice PhysicalDevice;
 
 			VkPhysicalDeviceFeatures EnabledFeatures;
 
 			VkPhysicalDeviceProperties Properties;
 			VkPhysicalDeviceFeatures Features;
 			VkPhysicalDeviceMemoryProperties  MemoryProperties;
+			VkFormatProperties FormatProperties;
 			std::vector<VkQueueFamilyProperties> QueueFamilyProperties;
 
 			VkFormat DepthFormat;
@@ -90,8 +92,8 @@ namespace VulkanFactory
 	public:
 		struct SwapchainInfo;
 
-		static void Create(uint32_t Width, uint32_t Height, VkSurfaceKHR surface,
-			const Device::DeviceInfo& deviceInfo, SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo = nullptr);
+		static void Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height, VkSurfaceKHR surface,
+			SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo = nullptr);
 		static void Destroy(const Device::DeviceInfo& deviceInfo, SwapchainInfo& swapchainInfo);
 
 		struct SwapchainInfo
@@ -120,16 +122,45 @@ namespace VulkanFactory
 	{
 	public:
 		struct ImageInfo;
+		struct ImageInfo2;
 
-		static void Create(const Device::DeviceInfo& deviceInfo, VkFormat format,
-			uint32_t Width, uint32_t Height, ImageInfo& output);
+		static void Create(const Device::DeviceInfo& deviceInfo,
+			uint32_t width, uint32_t height, VkFormat format, ImageInfo& output);
 		static void Destroy(VkDevice device, ImageInfo& imageInfo);
+		static void Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
+			VkFormat format, VkCommandPool commandPool, VkQueue queue, ImageInfo2& output);
+		static void Destroy(VkDevice device, ImageInfo2& imageInfo);
 
 		struct ImageInfo
 		{
-			VkImage image;
-			VkImageView view;
-			VkDeviceMemory memory;
+			VkImage Image;
+			VkImageView View;
+			VkDeviceMemory Memory;
+		};
+
+		struct ImageInfo2
+		{
+			VkImage Image;
+			VkDescriptorImageInfo DescriptorImageInfo;
+			VkDeviceMemory Memory;
+		};
+	};
+	class Buffer
+	{
+		struct BufferInfo;
+
+		static void Create(const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
+			VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, BufferInfo& output);
+		static void Destroy(const Device::DeviceInfo& deviceInfo, BufferInfo& bufferInfo);
+
+
+		//static void Create(VkDevice device, BufferInfo& bufferInfo);
+
+		struct BufferInfo
+		{
+			VkDescriptorBufferInfo DescriptorBufferInfo;
+			VkDeviceMemory Memory;
+			VkDeviceSize Size;
 		};
 	};
 	class RenderPass
@@ -141,23 +172,30 @@ namespace VulkanFactory
 	class Framebuffer
 	{
 	public:
-		static VkFramebuffer Create(VkDevice device, VkRenderPass renderPass, uint32_t Width, uint32_t Height,
+		static VkFramebuffer Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
 			VkImageView colorView, VkImageView depthView);
 		static void Destroy(VkDevice device, VkFramebuffer framebuffer);
 	};
 	class Descriptor
 	{
 	public:
-		static VkDescriptorSetLayout CreateSetLayout(VkDevice device);
+		static VkDescriptorSetLayout CreateSetLayout(VkDevice device,
+			VkDescriptorSetLayoutBinding* layoutBindings, uint32_t bindingCount);
 		static void DestroySetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout);
-		static VkDescriptorPool CreatePool();
-		static VkDescriptorSet CreateSet();
+		static VkDescriptorPool CreatePool(VkDevice device, VkDescriptorPoolSize* poolSizes,
+			uint32_t sizesCount, uint32_t maxSets /*e.g. 2 for vertex and fragment*/);
+		static void DestroyPool(VkDevice device, VkDescriptorPool descriptorPool);
+		static VkDescriptorSet AllocateSet(VkDevice device, VkDescriptorPool descriptorPool,
+			VkDescriptorSetLayout descriptorSetLayout);
+		static void FreeSet(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSet descriptorSet);
 	};
 	class Pipeline
 	{
 	public:
 		static VkPipeline CreateGraphics(VkDevice device, VkRenderPass renderPass, const Swapchain::SwapchainInfo& swapchain,
 			VkShaderModule vertexShader, VkShaderModule fragmentShader, VkPipelineLayout pipelineLayout,
+			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
+		static VkPipeline CreateCompute(VkDevice device, VkPipelineLayout pipelineLayout, VkShaderModule computeShader,
 			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
 		static void Destroy(VkDevice device, VkPipeline pipeline);
 

@@ -19,18 +19,21 @@ namespace VulkanInitializers
 		return instanceCreateInfo;
 	}
 
-	inline VkDeviceQueueCreateInfo Queue(const std::vector<VkQueueFamilyProperties>& queueProperties, 
-		VkQueueFlags flags, const float defaultPriority = 0.f)
+	inline VkDeviceQueueCreateInfo Queue(uint32_t index, const float defaultPriority = 0.f)
 	{
-		const float defaultQueuePriority = 0.f;
-
-		uint32_t index = VulkanUtils::Queue::GetQueueFamilyIndex(queueProperties, VK_QUEUE_GRAPHICS_BIT);
-
 		VkDeviceQueueCreateInfo queueCreateInfo{};
 		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		queueCreateInfo.queueCount = 1;
-		queueCreateInfo.pQueuePriorities = &defaultPriority;
 		queueCreateInfo.queueFamilyIndex = index;
+		return queueCreateInfo;
+	}
+
+	inline VkDeviceQueueCreateInfo Queue(const std::vector<VkQueueFamilyProperties>& queueProperties, 
+		VkQueueFlags flags)
+	{
+		uint32_t index = VulkanUtils::Queue::GetQueueFamilyIndex(queueProperties, flags);
+
+		VkDeviceQueueCreateInfo queueCreateInfo = Queue(index);
 		return queueCreateInfo;
 	}
 
@@ -89,6 +92,14 @@ namespace VulkanInitializers
 		return imageView;
 	}
 
+	inline VkSamplerCreateInfo Sampler()
+	{
+		VkSamplerCreateInfo samplerCreateInfo{};
+		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerCreateInfo.maxAnisotropy = 1.0f;
+		return samplerCreateInfo;
+	}
+
 	inline VkImageViewCreateInfo ColorAttachmentView(VkImage image, VkFormat format)
 	{
 		VkImageViewCreateInfo colorAttachmentView = ImageView(image, format);
@@ -136,6 +147,13 @@ namespace VulkanInitializers
 		commandBufferAllocateInfo.level = level;
 		commandBufferAllocateInfo.commandBufferCount = bufferCount;
 		return commandBufferAllocateInfo;
+	}
+
+	inline VkCommandBufferBeginInfo CommandBufferBeginning()
+	{
+		VkCommandBufferBeginInfo commandBufferBeginInfo{};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		return commandBufferBeginInfo;
 	}
 
 	inline VkImageCreateInfo Image(VkFormat format)
@@ -231,15 +249,13 @@ namespace VulkanInitializers
 		return pipelineDepthStencilStateCreateInfo;
 	}
 
-	inline VkPipelineViewportStateCreateInfo PipelineViewportState(VkViewport viewport, VkRect2D scissor,
+	inline VkPipelineViewportStateCreateInfo PipelineViewportState(uint32_t viewportCount, uint32_t scissorCount,
 		VkPipelineViewportStateCreateFlags flags = 0)
 	{
 		VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo{};
 		pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		pipelineViewportStateCreateInfo.viewportCount = 1;
-		pipelineViewportStateCreateInfo.pViewports = &viewport;
-		pipelineViewportStateCreateInfo.scissorCount = 1;
-		pipelineViewportStateCreateInfo.pScissors = &scissor;
+		pipelineViewportStateCreateInfo.viewportCount = viewportCount;
+		pipelineViewportStateCreateInfo.scissorCount = scissorCount;
 		pipelineViewportStateCreateInfo.flags = flags;
 		return pipelineViewportStateCreateInfo;
 	}
@@ -281,6 +297,33 @@ namespace VulkanInitializers
 		return graphicsPipelineCreateInfo;
 	}
 
+	inline VkComputePipelineCreateInfo ComputePipeline()
+	{
+		VkComputePipelineCreateInfo computePipelineCreateInfo{};
+		computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		return computePipelineCreateInfo;
+	}
+
+	inline VkRenderPassBeginInfo RenderPassBeginning(VkRenderPass renderPass, uint32_t width, uint32_t height)
+	{
+		VkRenderPassBeginInfo renderPassBeginInfo{};
+		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
+		return renderPassBeginInfo;
+	}
+
+	inline VkPresentInfoKHR Present(uint32_t swapchainCount, VkSwapchainKHR* swapchains, uint32_t* imageIndices)
+	{
+		VkPresentInfoKHR presentInfo{};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.swapchainCount = swapchainCount;
+		presentInfo.pSwapchains = swapchains;
+		presentInfo.pImageIndices = imageIndices;
+		return presentInfo;
+	}
+
 	inline VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(VkDescriptorType type,
 		VkShaderStageFlags stageFlags, uint32_t binding, uint32_t descriptorCount = 1)
 	{
@@ -309,5 +352,101 @@ namespace VulkanInitializers
 		pipelineLayoutCreateInfo.setLayoutCount = layoutCount;
 		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts;
 		return pipelineLayoutCreateInfo;
+	}
+
+	inline VkDescriptorPoolSize DescriptorPoolSize(VkDescriptorType descriptorType, uint32_t descriptorCount)
+	{
+		VkDescriptorPoolSize descriptorPoolSize{};
+		descriptorPoolSize.type = descriptorType;
+		descriptorPoolSize.descriptorCount = descriptorCount;
+		return descriptorPoolSize;
+	}
+
+	inline VkDescriptorPoolCreateInfo DescriptorPool(VkDescriptorPoolSize* descriptorPoolSizes, uint32_t sizeCount,
+		uint32_t maxSets)
+	{
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.poolSizeCount = sizeCount;
+		descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
+		descriptorPoolCreateInfo.maxSets = maxSets;
+		return descriptorPoolCreateInfo;
+	}
+
+	inline VkDescriptorSetAllocateInfo DescriptorSetAllocation(VkDescriptorPool descriptorPool,
+		VkDescriptorSetLayout* descriptorSetLayouts, uint32_t setCount)
+	{
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+		descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts;
+		descriptorSetAllocateInfo.descriptorSetCount = setCount;
+		return descriptorSetAllocateInfo;
+	}
+
+	inline VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet set,
+		VkDescriptorType type, uint32_t binding, VkDescriptorImageInfo* imageInfo,
+		uint32_t descriptorCount = 1)
+	{
+		VkWriteDescriptorSet writeDescriptorSet{};
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = set;
+		writeDescriptorSet.descriptorType = type;
+		writeDescriptorSet.dstBinding = binding;
+		writeDescriptorSet.pImageInfo = imageInfo;
+		writeDescriptorSet.descriptorCount = descriptorCount;
+		return writeDescriptorSet;
+	}
+
+	inline VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet set,
+		VkDescriptorType type, uint32_t binding, VkDescriptorBufferInfo* bufferInfo,
+		uint32_t descriptorCount = 1)
+	{
+		VkWriteDescriptorSet writeDescriptorSet{};
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = set;
+		writeDescriptorSet.descriptorType = type;
+		writeDescriptorSet.dstBinding = binding;
+		writeDescriptorSet.pBufferInfo = bufferInfo;
+		writeDescriptorSet.descriptorCount = descriptorCount;
+		return writeDescriptorSet;
+	}
+
+	inline VkImageSubresourceRange ImageSubresourceRange(VkImageAspectFlags imageAspectMask)
+	{
+		VkImageSubresourceRange imageSubresourceRange{};
+		imageSubresourceRange.aspectMask = imageAspectMask;
+		imageSubresourceRange.baseMipLevel = 0;
+		imageSubresourceRange.levelCount = 1;
+		imageSubresourceRange.layerCount = 1;
+		return imageSubresourceRange;
+	}
+
+	inline VkImageMemoryBarrier ImageMemoryBarrier()
+	{
+		VkImageMemoryBarrier imageMemoryBarrier{};
+		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		return imageMemoryBarrier;
+	}
+
+	inline VkBufferCreateInfo Buffer(VkBufferUsageFlags usage, VkDeviceSize size)
+	{
+		VkBufferCreateInfo bufferCreateInfo{};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.usage = usage;
+		bufferCreateInfo.size = size;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		return bufferCreateInfo;
+	}
+
+	inline VkBufferCopy BufferCopy(VkDeviceSize size, VkDeviceSize sourceOffset = 0, VkDeviceSize destinationOffset = 0)
+	{
+		VkBufferCopy bufferCopy{};
+		bufferCopy.size = size;
+		bufferCopy.srcOffset = sourceOffset;
+		bufferCopy.dstOffset = destinationOffset;
+		return bufferCopy;
 	}
 };

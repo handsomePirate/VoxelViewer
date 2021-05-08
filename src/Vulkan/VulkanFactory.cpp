@@ -41,6 +41,7 @@ void VulkanFactory::Device::Create(
 	std::vector<const char*> extensions, DeviceInfo& output,
 	VkQueueFlags requestedQueueTypes, bool debugMarkersEnabled)
 {
+	output.PhysicalDevice = physicalDevice;
 	output.Properties = VulkanUtils::Device::GetPhysicalDeviceProperties(physicalDevice);
 	output.Features = VulkanUtils::Device::GetPhysicalDeviceFeatures(physicalDevice);
 	output.MemoryProperties = VulkanUtils::Device::GetPhysicalDeviceMemoryProperties(physicalDevice);
@@ -52,10 +53,12 @@ void VulkanFactory::Device::Create(
 	output.DebugMarkersEnabled = debugMarkersEnabled;
 	std::vector<VkDeviceQueueCreateInfo> queueInitializers{};
 
+	const float defaultPriority = 0.f;
 	// Graphics queue.
 	if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)
 	{
 		auto queueInitializer = VulkanInitializers::Queue(output.QueueFamilyProperties, VK_QUEUE_GRAPHICS_BIT);
+		queueInitializer.pQueuePriorities = &defaultPriority;
 		output.QueueFamilyIndices.graphics = queueInitializer.queueFamilyIndex;
 		queueInitializers.push_back(queueInitializer);
 	}
@@ -68,6 +71,7 @@ void VulkanFactory::Device::Create(
 	if (requestedQueueTypes & VK_QUEUE_COMPUTE_BIT)
 	{
 		auto queueInitializer = VulkanInitializers::Queue(output.QueueFamilyProperties, VK_QUEUE_COMPUTE_BIT);
+		queueInitializer.pQueuePriorities = &defaultPriority;
 		output.QueueFamilyIndices.compute = queueInitializer.queueFamilyIndex;
 		if (output.QueueFamilyIndices.compute != output.QueueFamilyIndices.graphics)
 		{
@@ -83,6 +87,7 @@ void VulkanFactory::Device::Create(
 	if (requestedQueueTypes & VK_QUEUE_TRANSFER_BIT)
 	{
 		auto queueInitializer = VulkanInitializers::Queue(output.QueueFamilyProperties, VK_QUEUE_TRANSFER_BIT);
+		queueInitializer.pQueuePriorities = &defaultPriority;
 		output.QueueFamilyIndices.transfer = queueInitializer.queueFamilyIndex;
 		if (output.QueueFamilyIndices.transfer != output.QueueFamilyIndices.graphics &&
 			output.QueueFamilyIndices.transfer != output.QueueFamilyIndices.compute)
@@ -181,13 +186,13 @@ VkQueue VulkanFactory::Queue::Get(VkDevice device, uint32_t queueFamily, uint32_
 	return queue;
 }
 
-void VulkanFactory::Swapchain::Create(
-	uint32_t Width, uint32_t Height, VkSurfaceKHR surface, const Device::DeviceInfo& deviceInfo,
+void VulkanFactory::Swapchain::Create(const Device::DeviceInfo& deviceInfo,
+	uint32_t width, uint32_t height, VkSurfaceKHR surface,
 	SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo)
 {
 	bool oldSwapchainProvided = oldSwapchainInfo != nullptr ? true : false;
 
-	output.Extent = VulkanUtils::Surface::QueryExtent(Width, Height, deviceInfo.SurfaceCapabilities);
+	output.Extent = VulkanUtils::Surface::QueryExtent(width, height, deviceInfo.SurfaceCapabilities);
 
 	uint32_t imageCount = VulkanUtils::Swapchain::QueryImageCount(deviceInfo.SurfaceCapabilities);
 
@@ -280,41 +285,139 @@ void VulkanFactory::CommandBuffer::Free(VkDevice device, VkCommandPool commandPo
 	vkFreeCommandBuffers(device, commandPool, 1, &buffer);
 }
 
-void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo, VkFormat format,
-	uint32_t Width, uint32_t Height, ImageInfo& output)
+void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo,
+	uint32_t width, uint32_t height, VkFormat format, ImageInfo& output)
 {
 	auto imageInitializer = VulkanInitializers::Image(format);
-	imageInitializer.extent = { Width, Height, 1 };
+	imageInitializer.extent = { width, height, 1 };
 	imageInitializer.mipLevels = 1;
 	imageInitializer.arrayLayers = 1;
 	imageInitializer.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInitializer.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInitializer.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-	VkResult result = vkCreateImage(deviceInfo.Handle, &imageInitializer, nullptr, &output.image);
+	VkResult result = vkCreateImage(deviceInfo.Handle, &imageInitializer, nullptr, &output.Image);
 	assert(result == VK_SUCCESS);
 
-	VkMemoryRequirements memoryRequirements = VulkanUtils::Image::GetMemoryRequirements(deviceInfo.Handle, output.image);
-	auto memoryAllocateInfo = VulkanInitializers::MemoryAllocation(
-		memoryRequirements.size,
-		VulkanUtils::Memory::GetTypeIndex(
-			deviceInfo.MemoryProperties,
-			memoryRequirements.memoryTypeBits,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-	);
+	output.Memory = VulkanUtils::Memory::AllocateImage(deviceInfo.Handle, deviceInfo.MemoryProperties,
+		output.Image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	vkAllocateMemory(deviceInfo.Handle, &memoryAllocateInfo, nullptr, &output.memory);
-	vkBindImageMemory(deviceInfo.Handle, output.image, output.memory, 0);
+	result = vkBindImageMemory(deviceInfo.Handle, output.Image, output.Memory, 0);
+	assert(result == VK_SUCCESS);
 
-	auto depthAttachmentViewInitializer = VulkanInitializers::DepthAttachmentView(output.image, format);
-	vkCreateImageView(deviceInfo.Handle, &depthAttachmentViewInitializer, nullptr, &output.view);
+	auto depthAttachmentViewInitializer = VulkanInitializers::DepthAttachmentView(output.Image, format);
+	vkCreateImageView(deviceInfo.Handle, &depthAttachmentViewInitializer, nullptr, &output.View);
 }
 
 void VulkanFactory::Image::Destroy(VkDevice device, ImageInfo& imageInfo)
 {
-	vkDestroyImageView(device, imageInfo.view, nullptr);
-	vkFreeMemory(device, imageInfo.memory, nullptr);
-	vkDestroyImage(device, imageInfo.image, nullptr);
+	vkDestroyImageView(device, imageInfo.View, nullptr);
+	vkFreeMemory(device, imageInfo.Memory, nullptr);
+	vkDestroyImage(device, imageInfo.Image, nullptr);
+}
+
+void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
+	VkFormat format, VkCommandPool commandPool, VkQueue queue, ImageInfo2& output)
+{
+	VkFormatProperties formatProperties = VulkanUtils::Device::GetPhysicalDeviceFormatProperties(
+		deviceInfo.PhysicalDevice, format);
+	// Check if requested image format supports image storage operations
+	assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT);
+
+	VkImageCreateInfo imageCreateInfo = VulkanInitializers::Image(format);
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.extent = { width, height, 1 };
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	// Image will be sampled in the fragment shader and used as storage target in the compute shader
+	imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+	imageCreateInfo.flags = 0;
+
+	VkResult result = vkCreateImage(deviceInfo.Handle, &imageCreateInfo, nullptr, &output.Image);
+	assert(result == VK_SUCCESS);
+
+	output.Memory = VulkanUtils::Memory::AllocateImage(deviceInfo.Handle, deviceInfo.MemoryProperties,
+		output.Image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	result = vkBindImageMemory(deviceInfo.Handle, output.Image, output.Memory, 0);
+	assert(result == VK_SUCCESS);
+
+	VkCommandBuffer layoutCommandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(deviceInfo.Handle, commandPool);
+	VulkanUtils::CommandBuffer::Begin(layoutCommandBuffer);
+
+	output.DescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	
+	auto subresourceRange = VulkanInitializers::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+	VulkanUtils::Image::TransitionLayout(layoutCommandBuffer, output.Image,
+		VK_IMAGE_LAYOUT_UNDEFINED, output.DescriptorImageInfo.imageLayout, subresourceRange);
+
+	VulkanUtils::CommandBuffer::End(layoutCommandBuffer);
+	// TODO: Create command buffer pool and a queue in the deviceInfo.
+	VulkanUtils::Queue::Submit(layoutCommandBuffer, queue);
+	VulkanUtils::Queue::WaitIdle(queue);
+	VulkanFactory::CommandBuffer::Free(deviceInfo.Handle, commandPool, layoutCommandBuffer);
+
+	// Create sampler
+	auto samplerInitializer = VulkanInitializers::Sampler();
+	samplerInitializer.magFilter = VK_FILTER_LINEAR;
+	samplerInitializer.minFilter = VK_FILTER_LINEAR;
+	samplerInitializer.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInitializer.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInitializer.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInitializer.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInitializer.mipLodBias = 0.0f;
+	samplerInitializer.maxAnisotropy = 1.0f;
+	samplerInitializer.compareOp = VK_COMPARE_OP_NEVER;
+	samplerInitializer.minLod = 0.0f;
+	samplerInitializer.maxLod = 0.0f;
+	samplerInitializer.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	result = vkCreateSampler(deviceInfo.Handle, &samplerInitializer, nullptr, &output.DescriptorImageInfo.sampler);
+	assert(result == VK_SUCCESS);
+
+	// Create image view
+	VkImageViewCreateInfo view = VulkanInitializers::ImageView(output.Image, format);
+	view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	view.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+	view.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	result = vkCreateImageView(deviceInfo.Handle, &view, nullptr, &output.DescriptorImageInfo.imageView);
+	assert(result == VK_SUCCESS);
+}
+
+void VulkanFactory::Image::Destroy(VkDevice device, ImageInfo2& imageInfo)
+{
+	vkDestroyImageView(device, imageInfo.DescriptorImageInfo.imageView, nullptr);
+	vkDestroySampler(device, imageInfo.DescriptorImageInfo.sampler, nullptr);
+	vkFreeMemory(device, imageInfo.Memory, nullptr);
+	vkDestroyImage(device, imageInfo.Image, nullptr);
+}
+
+void VulkanFactory::Buffer::Create(const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
+	VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, BufferInfo& output)
+{
+	output.DescriptorBufferInfo.offset = 0;
+	output.DescriptorBufferInfo.range = 0;
+	output.Size = size;
+
+	auto bufferInitializer = VulkanInitializers::Buffer(usage, size);
+
+	VkResult result = vkCreateBuffer(deviceInfo.Handle, &bufferInitializer, nullptr, &output.DescriptorBufferInfo.buffer);
+	assert(result == VK_SUCCESS);
+
+	output.Memory = VulkanUtils::Memory::AllocateBuffer(deviceInfo.Handle, deviceInfo.MemoryProperties,
+		output.DescriptorBufferInfo.buffer, memoryProperties);
+
+	result = vkBindBufferMemory(deviceInfo.Handle, output.DescriptorBufferInfo.buffer, output.Memory,
+		output.DescriptorBufferInfo.offset);
+	assert(result == VK_SUCCESS);
+}
+
+void VulkanFactory::Buffer::Destroy(const Device::DeviceInfo& deviceInfo, BufferInfo& bufferInfo)
+{
+	vkFreeMemory(deviceInfo.Handle, bufferInfo.Memory, nullptr);
+	vkDestroyBuffer(deviceInfo.Handle, bufferInfo.DescriptorBufferInfo.buffer, nullptr);
 }
 
 VkRenderPass VulkanFactory::RenderPass::Create(VkDevice device, VkFormat colorFormat, VkFormat depthFormat)
@@ -398,7 +501,7 @@ void VulkanFactory::RenderPass::Destroy(VkDevice device, VkRenderPass renderPass
 	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
-VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass renderPass, uint32_t Width, uint32_t Height,
+VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
 	VkImageView colorView, VkImageView depthView)
 {
 	const int attachmentCount = 2;
@@ -410,8 +513,8 @@ VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass r
 	framebufferInitializer.renderPass = renderPass;
 	framebufferInitializer.attachmentCount = attachmentCount;
 	framebufferInitializer.pAttachments = attachments;
-	framebufferInitializer.width = Width;
-	framebufferInitializer.height = Height;
+	framebufferInitializer.width = width;
+	framebufferInitializer.height = height;
 	framebufferInitializer.layers = 1;
 
 	VkFramebuffer framebuffer;
@@ -426,16 +529,11 @@ void VulkanFactory::Framebuffer::Destroy(VkDevice device, VkFramebuffer framebuf
 	vkDestroyFramebuffer(device, framebuffer, nullptr);
 }
 
-VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(VkDevice device)
+VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(VkDevice device,
+	VkDescriptorSetLayoutBinding* layoutBindings, uint32_t bindingCount)
 {
-	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
-	{
-		VulkanInitializers::DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_SHADER_STAGE_FRAGMENT_BIT, 0)
-	};
-
 	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = VulkanInitializers::DescriptorSetLayout(
-		setLayoutBindings.data(), (uint32_t)setLayoutBindings.size());
+		layoutBindings, bindingCount);
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkResult result = vkCreateDescriptorSetLayout(device, &descriptorLayoutCreateInfo, nullptr, &descriptorSetLayout);
@@ -446,6 +544,40 @@ VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(VkDevice device
 void VulkanFactory::Descriptor::DestroySetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
 {
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+}
+
+VkDescriptorPool VulkanFactory::Descriptor::CreatePool(VkDevice device, VkDescriptorPoolSize* poolSizes,
+	uint32_t sizesCount, uint32_t maxSets)
+{
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = VulkanInitializers::DescriptorPool(poolSizes,
+		sizesCount, maxSets);
+
+	VkDescriptorPool descriptorPool;
+	vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
+
+	return descriptorPool;
+}
+
+void VulkanFactory::Descriptor::DestroyPool(VkDevice device, VkDescriptorPool descriptorPool)
+{
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+}
+
+VkDescriptorSet VulkanFactory::Descriptor::AllocateSet(VkDevice device, VkDescriptorPool descriptorPool,
+	VkDescriptorSetLayout descriptorSetLayout)
+{
+	auto descriptorSetAllocationInitializer = VulkanInitializers::DescriptorSetAllocation(descriptorPool,
+		&descriptorSetLayout, 1);
+
+	VkDescriptorSet descriptorSet;
+	VkResult result = vkAllocateDescriptorSets(device, &descriptorSetAllocationInitializer, &descriptorSet);
+	assert(result == VK_SUCCESS);
+	return descriptorSet;
+}
+
+void VulkanFactory::Descriptor::FreeSet(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSet descriptorSet)
+{
+	vkFreeDescriptorSets(device, descriptorPool, 1, &descriptorSet);
 }
 
 VkPipeline VulkanFactory::Pipeline::CreateGraphics(VkDevice device, VkRenderPass renderPass,
@@ -468,9 +600,7 @@ VkPipeline VulkanFactory::Pipeline::CreateGraphics(VkDevice device, VkRenderPass
 	auto depthStencilStateInitializer = VulkanInitializers::PipelineDepthStencilState(
 		VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
 
-	VkViewport viewport = VulkanUtils::Pipeline::CreateViewport(swapchain.Width, swapchain.Height);
-	VkRect2D scissor = VulkanUtils::Pipeline::CreateScissor(swapchain.Extent);
-	auto viewportStateInitializer = VulkanInitializers::PipelineViewportState(viewport, scissor);
+	auto viewportStateInitializer = VulkanInitializers::PipelineViewportState(1, 1);
 
 	auto multisampleStateInitializer = VulkanInitializers::PipelineMultisampleState(
 		VK_SAMPLE_COUNT_1_BIT);
@@ -497,23 +627,37 @@ VkPipeline VulkanFactory::Pipeline::CreateGraphics(VkDevice device, VkRenderPass
 	emptyInputState.vertexBindingDescriptionCount = 0;
 	emptyInputState.pVertexBindingDescriptions = nullptr;
 
-	auto pipelineCreateInitializer = VulkanInitializers::GraphicsPipeline();
-	pipelineCreateInitializer.renderPass = renderPass;
-	pipelineCreateInitializer.layout = pipelineLayout;
-	pipelineCreateInitializer.pVertexInputState = &emptyInputState;
-	pipelineCreateInitializer.pInputAssemblyState = &inputAssemblyStateInitializer;
-	pipelineCreateInitializer.pRasterizationState = &rasterizationStateInitializer;
-	pipelineCreateInitializer.pColorBlendState = &colorBlendStateInitializer;
-	pipelineCreateInitializer.pMultisampleState = &multisampleStateInitializer;
-	pipelineCreateInitializer.pViewportState = &viewportStateInitializer;
-	pipelineCreateInitializer.pDepthStencilState = &depthStencilStateInitializer;
-	pipelineCreateInitializer.pDynamicState = &dynamicStateInitializer;
-	pipelineCreateInitializer.stageCount = shaderCount;
-	pipelineCreateInitializer.pStages = shaderStages;
-	pipelineCreateInitializer.renderPass = renderPass;
+	auto pipelineInitializer = VulkanInitializers::GraphicsPipeline();
+	pipelineInitializer.renderPass = renderPass;
+	pipelineInitializer.layout = pipelineLayout;
+	pipelineInitializer.pVertexInputState = &emptyInputState;
+	pipelineInitializer.pInputAssemblyState = &inputAssemblyStateInitializer;
+	pipelineInitializer.pRasterizationState = &rasterizationStateInitializer;
+	pipelineInitializer.pColorBlendState = &colorBlendStateInitializer;
+	pipelineInitializer.pMultisampleState = &multisampleStateInitializer;
+	pipelineInitializer.pViewportState = &viewportStateInitializer;
+	pipelineInitializer.pDepthStencilState = &depthStencilStateInitializer;
+	pipelineInitializer.pDynamicState = &dynamicStateInitializer;
+	pipelineInitializer.stageCount = shaderCount;
+	pipelineInitializer.pStages = shaderStages;
+	pipelineInitializer.renderPass = renderPass;
 	
 	VkPipeline pipeline;
-	vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInitializer, nullptr, &pipeline);
+	vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	return pipeline;
+}
+
+VkPipeline VulkanFactory::Pipeline::CreateCompute(VkDevice device, VkPipelineLayout pipelineLayout, VkShaderModule computeShader,
+	VkPipelineCache pipelineCache)
+{
+	auto shaderInitializer = VulkanInitializers::PipelineShaderStage(computeShader, VK_SHADER_STAGE_COMPUTE_BIT);
+
+	auto pipelineInitializer = VulkanInitializers::ComputePipeline();
+	pipelineInitializer.layout = pipelineLayout;
+	pipelineInitializer.stage = shaderInitializer;
+
+	VkPipeline pipeline;
+	vkCreateComputePipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
 	return pipeline;
 }
 

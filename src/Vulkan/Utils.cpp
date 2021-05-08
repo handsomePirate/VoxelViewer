@@ -1,6 +1,8 @@
 #include "Utils.hpp"
 #include "Platform/Platform.hpp"
 #include "Logger/Logger.hpp"
+#include "Initializers.hpp"
+#include "VulkanFactory.hpp"
 
 bool VulkanUtils::Instance::CheckExtensionsPresent(const std::vector<const char*>& extensions)
 {
@@ -60,6 +62,13 @@ VkPhysicalDeviceFeatures VulkanUtils::Device::GetPhysicalDeviceFeatures(VkPhysic
 	return features;
 }
 
+VkFormatProperties VulkanUtils::Device::GetPhysicalDeviceFormatProperties(VkPhysicalDevice device, VkFormat format)
+{
+	VkFormatProperties formatProperties;
+	vkGetPhysicalDeviceFormatProperties(device, format, &formatProperties);
+	return formatProperties;
+}
+
 VkPhysicalDeviceMemoryProperties VulkanUtils::Device::GetPhysicalDeviceMemoryProperties(VkPhysicalDevice device)
 {
 	VkPhysicalDeviceMemoryProperties memoryProperties;
@@ -76,6 +85,32 @@ std::vector<VkQueueFamilyProperties> VulkanUtils::Device::GetQueueFamilyProperti
 	result.resize(queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, result.data());
 	return result;
+}
+
+void VulkanUtils::Queue::Submit(VkCommandBuffer commandBuffer, VkQueue queue)
+{
+	auto submitInfo = VulkanInitializers::SubmitInfo();
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+}
+
+void VulkanUtils::Queue::WaitIdle(VkQueue queue)
+{
+	vkQueueWaitIdle(queue);
+}
+
+void VulkanUtils::CommandBuffer::Begin(VkCommandBuffer commandBuffer)
+{
+	auto commandBufferBeginInfo = VulkanInitializers::CommandBufferBeginning();
+	VkResult result = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+	assert(result == VK_SUCCESS);
+}
+
+void VulkanUtils::CommandBuffer::End(VkCommandBuffer commandBuffer)
+{
+	VkResult result = vkEndCommandBuffer(commandBuffer);
+	assert(result == VK_SUCCESS);
 }
 
 bool VulkanUtils::Device::CheckExtensionsSupported(VkPhysicalDevice device, const std::vector<const char*>& extensions)
@@ -297,12 +332,12 @@ VkSurfaceCapabilitiesKHR VulkanUtils::Surface::QueryCapabilities(VkPhysicalDevic
 	return capabilities;
 }
 
-VkExtent2D VulkanUtils::Surface::QueryExtent(uint32_t Width, uint32_t Height, VkSurfaceCapabilitiesKHR surfaceCapabilities)
+VkExtent2D VulkanUtils::Surface::QueryExtent(uint32_t width, uint32_t height, VkSurfaceCapabilitiesKHR surfaceCapabilities)
 {
 	if (surfaceCapabilities.currentExtent.width != UINT32_MAX)
 		return surfaceCapabilities.currentExtent;
 
-	VkExtent2D actualExtent = { (uint32_t)(Width), (uint32_t)(Height) };
+	VkExtent2D actualExtent = { (uint32_t)width, (uint32_t)height };
 
 	actualExtent.width = std::max<uint32_t>(surfaceCapabilities.minImageExtent.width,
 		std::min<uint32_t>(surfaceCapabilities.maxImageExtent.width, actualExtent.width));
@@ -405,6 +440,161 @@ std::vector<VkImage> VulkanUtils::Swapchain::GetImages(VkDevice device, VkSwapch
 	return images;
 }
 
+void VulkanUtils::Image::TransitionLayout(VkCommandBuffer cmdbuffer, VkImage image,
+	VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange,
+	VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
+{
+	VkImageMemoryBarrier imageMemoryBarrier = VulkanInitializers::ImageMemoryBarrier();
+	imageMemoryBarrier.oldLayout = oldImageLayout;
+	imageMemoryBarrier.newLayout = newImageLayout;
+	imageMemoryBarrier.image = image;
+	imageMemoryBarrier.subresourceRange = subresourceRange;
+
+	// Source layouts (old)
+			// Source access mask controls actions that have to be finished on the old layout
+			// before it will be transitioned to the new layout
+	switch (oldImageLayout)
+	{
+	case VK_IMAGE_LAYOUT_UNDEFINED:
+		// Image layout is undefined (or does not matter)
+		// Only valid as initial layout
+		// No flags required, listed only for completeness
+		imageMemoryBarrier.srcAccessMask = 0;
+		break;
+
+	case VK_IMAGE_LAYOUT_PREINITIALIZED:
+		// Image is preinitialized
+		// Only valid as initial layout for linear images, preserves memory contents
+		// Make sure host writes have been finished
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+		// Image is a color attachment
+		// Make sure any writes to the color buffer have been finished
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+		// Image is a depth/stencil attachment
+		// Make sure any writes to the depth/stencil buffer have been finished
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+		// Image is a transfer source 
+		// Make sure any reads from the image have been finished
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+		// Image is a transfer destination
+		// Make sure any writes to the image have been finished
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+		// Image is read by a shader
+		// Make sure any shader reads from the image have been finished
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		break;
+	default:
+		// Other source layouts aren't handled (yet)
+		break;
+	}
+
+	// Target layouts (new)
+	// Destination access mask controls the dependency for the new image layout
+	switch (newImageLayout)
+	{
+	case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+		// Image will be used as a transfer destination
+		// Make sure any writes to the image have been finished
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+		// Image will be used as a transfer source
+		// Make sure any reads from the image have been finished
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+		// Image will be used as a color attachment
+		// Make sure any writes to the color buffer have been finished
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+		// Image layout will be used as a depth/stencil attachment
+		// Make sure any writes to depth/stencil buffer have been finished
+		imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+		// Image will be read in a shader (sampler, input attachment)
+		// Make sure any writes to the image have been finished
+		if (imageMemoryBarrier.srcAccessMask == 0)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+		}
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		break;
+	default:
+		// Other source layouts aren't handled (yet)
+		break;
+	}
+
+	// Put barrier inside setup command buffer
+	vkCmdPipelineBarrier(
+		cmdbuffer, srcStageMask, dstStageMask,
+		0, 0, nullptr, 0, nullptr,
+		1, &imageMemoryBarrier);
+}
+
+void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, void* source)
+{
+	void* destination = Memory::Map(device, memory, offset, size);
+	memcpy(destination, source, size);
+	Memory::Unmap(device, memory);
+}
+
+void VulkanUtils::Buffer::Copy(VkDevice device, VkBuffer source, VkBuffer destination, VkDeviceSize size,
+	VkCommandPool commandPool, VkQueue queue, VkDeviceSize sourceOffset, VkDeviceSize destinationOffset)
+{
+	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
+	CommandBuffer::Begin(commandBuffer);
+
+	VkBufferCopy copyRegion = VulkanInitializers::BufferCopy(size, sourceOffset, destinationOffset);
+	vkCmdCopyBuffer(commandBuffer, source, destination, 1, &copyRegion);
+
+	CommandBuffer::End(commandBuffer);
+	Queue::Submit(commandBuffer, queue);
+	VulkanFactory::CommandBuffer::Free(device, commandPool, commandBuffer);
+}
+
+void VulkanUtils::Descriptor::WriteImageSet(VkDevice device, VkDescriptorSet descriptorSet,
+	VkDescriptorImageInfo* imageInfo)
+{
+	auto writeDescriptorSets = VulkanInitializers::WriteDescriptorSet(descriptorSet,
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, imageInfo);
+
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSets, 0, nullptr);
+}
+
+void VulkanUtils::Descriptor::WriteComputeSet(VkDevice device, VkDescriptorSet descriptorSet,
+	VkDescriptorImageInfo* renderTargetInfo/*, VkDescriptorBufferInfo* storageBufferInfo*/)
+{
+	const int setCount = 1;
+	VkWriteDescriptorSet writeDescriptorSets[setCount] =
+	{
+		VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, renderTargetInfo),
+		//VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, storageBufferInfo),
+	};
+
+	vkUpdateDescriptorSets(device, setCount, writeDescriptorSets, 0, nullptr);
+}
+
 uint32_t VulkanUtils::Memory::GetTypeIndex(VkPhysicalDeviceMemoryProperties memoryProperties,
 	uint32_t filter, VkMemoryPropertyFlags requiredProperties)
 {
@@ -419,4 +609,51 @@ uint32_t VulkanUtils::Memory::GetTypeIndex(VkPhysicalDeviceMemoryProperties memo
 
 	CoreLogger.Log(Core::LoggerSeverity::Fatal, "Couldn't find a matching memory type!");
 	return UINT32_MAX;
+}
+
+VkDeviceMemory VulkanUtils::Memory::AllocateBuffer(VkDevice device, VkPhysicalDeviceMemoryProperties deviceMemoryProperties,
+	VkBuffer buffer, VkMemoryPropertyFlags memoryProperties)
+{
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
+
+	auto memoryAllocateInfo = VulkanInitializers::MemoryAllocation(memoryRequirements.size,
+		VulkanUtils::Memory::GetTypeIndex(deviceMemoryProperties, memoryRequirements.memoryTypeBits,
+			memoryProperties));
+
+	VkDeviceMemory memory;
+	VkResult result = vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &memory);
+	assert(result == VK_SUCCESS);
+
+	return memory;
+}
+
+VkDeviceMemory VulkanUtils::Memory::AllocateImage(VkDevice device, VkPhysicalDeviceMemoryProperties deviceMemoryProperties,
+	VkImage image, VkMemoryPropertyFlags memoryProperties)
+{
+	VkMemoryRequirements memoryRequirements;
+	vkGetImageMemoryRequirements(device, image, &memoryRequirements);
+
+	auto memoryAllocateInfo = VulkanInitializers::MemoryAllocation(memoryRequirements.size,
+		VulkanUtils::Memory::GetTypeIndex(deviceMemoryProperties, memoryRequirements.memoryTypeBits,
+			memoryProperties));
+
+	VkDeviceMemory memory;
+	VkResult result = vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &memory);
+	assert(result == VK_SUCCESS);
+
+	return memory;
+}
+
+void* VulkanUtils::Memory::Map(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size,
+	VkMemoryMapFlags flags)
+{
+	void* output;
+	vkMapMemory(device, memory, offset, size, flags, &output);
+	return output;
+}
+
+void VulkanUtils::Memory::Unmap(VkDevice device, VkDeviceMemory memory)
+{
+	vkUnmapMemory(device, memory);
 }
