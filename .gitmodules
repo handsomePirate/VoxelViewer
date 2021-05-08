@@ -1,3 +1,6 @@
 [submodule "ext/premake"]
 	path = ext/premake
 	url = git@github.com:premake/premake-core.git
+[submodule "ext/imgui"]
+	path = ext/imgui
+	url = https://github.com/handsomePirate/imgui.git
