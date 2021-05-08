@@ -3,6 +3,10 @@ workspace "VoxelViewer"
 	configurations { "Debug", "Release" }
 	location "proj"
 
+group "ext"
+	include "ext/imgui"
+group ""
+
 -- This takes care of shader compilation for Visual Studio, for other systems (aside from gmake2) a different
 -- compilation pipeline must be devised.
 -- Solution found here: https://stackoverflow.com/questions/39072485/compiling-glsl-to-spir-v-using-premake-5-and-visual-studio-2015
@@ -40,8 +44,15 @@ project "VoxelViewer"
 	targetdir "./build/%{cfg.buildcfg}"
 	objdir "proj/obj/%{cfg.buildcfg}"
 	files { "src/**.hpp", "src/**.cpp", "src/**.glsl" }
-	includedirs { "ext", "src/Core", "$(VULKAN_SDK)/include" }
-	links { "$(VULKAN_SDK)/lib/vulkan-1.lib" }
+	includedirs { 
+		"src/Core",
+		"$(VULKAN_SDK)/include",
+		"ext/imGui"
+	}
+	links {
+		"$(VULKAN_SDK)/lib/vulkan-1.lib",
+		"ext/imgui/bin/%{cfg.buildcfg}/ImGui.lib"
+	}
 
 	filter "system:windows"
 		cppdialect "C++17"
