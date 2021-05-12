@@ -45,7 +45,7 @@ project "VoxelViewer"
 	objdir "proj/obj/%{cfg.buildcfg}"
 	files { "src/**.hpp", "src/**.cpp", "src/**.glsl" }
 	includedirs { 
-		"src/Core",
+		"src",
 		"$(VULKAN_SDK)/include",
 		"ext/imGui"
 	}

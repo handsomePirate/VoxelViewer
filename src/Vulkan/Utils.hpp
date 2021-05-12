@@ -1,11 +1,16 @@
 #pragma once
-#include "Common.hpp"
+#include "Core/Common.hpp"
 #include <vector>
 
 // TODO: Large Vulkan structs need to be handled by reference.
 
 namespace VulkanUtils
 {
+	struct PushConstantBlock
+	{
+		float ScaleX, ScaleY;
+		float TranslationX, TranslationY;
+	};
 	class Instance
 	{
 	public:
@@ -66,11 +71,14 @@ namespace VulkanUtils
 			vkGetImageMemoryRequirements(device, image, &memoryRequirements);
 			return  memoryRequirements;
 		}
-		static void TransitionLayout(VkCommandBuffer cmdbuffer, VkImage image,
-			VkImageLayout oldImageLayout, VkImageLayout newImageLayout,
-			VkImageSubresourceRange subresourceRange,
+		static void TransitionLayout(VkDevice device, VkImage image,
+			VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange,
+			VkCommandPool commandPool, VkQueue queue,
 			VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+		static void Copy(VkDevice device, VkBuffer source, VkImage destination, VkImageLayout layout,
+			uint32_t width, uint32_t height, VkImageAspectFlags aspect, VkCommandPool commandPool, VkQueue queue);
 	};
 	class Buffer
 	{
@@ -99,6 +107,7 @@ namespace VulkanUtils
 		static void* Map(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size,
 			VkMemoryMapFlags flags = 0);
 		static void Unmap(VkDevice device, VkDeviceMemory memory);
+		static void Flush(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
 	};
 	class Pipeline
 	{

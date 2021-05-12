@@ -1,6 +1,6 @@
 #include "Debug.hpp"
-#include "Events/EventSystem.hpp"
-#include "Logger/Logger.hpp"
+#include "Core/Events/EventSystem.hpp"
+#include "Core/Logger/Logger.hpp"
 
 bool Debug::ValidationLayers::CheckLayerPresent(const char* name)
 {

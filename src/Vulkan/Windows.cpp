@@ -3,7 +3,7 @@
 #ifdef PLATFORM_WINDOWS
 
 #include <Windows.h>
-#include "Platform/Platform.hpp"
+#include "Core/Platform/Platform.hpp"
 #include <vulkan/vulkan_win32.h>
 
 VkSurfaceKHR SurfaceFactory::Create(VkInstance instance, uint64_t windowHandle)

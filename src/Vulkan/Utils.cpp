@@ -1,6 +1,6 @@
 #include "Utils.hpp"
-#include "Platform/Platform.hpp"
-#include "Logger/Logger.hpp"
+#include "Core/Platform/Platform.hpp"
+#include "Core/Logger/Logger.hpp"
 #include "Initializers.hpp"
 #include "VulkanFactory.hpp"
 
@@ -440,10 +440,14 @@ std::vector<VkImage> VulkanUtils::Swapchain::GetImages(VkDevice device, VkSwapch
 	return images;
 }
 
-void VulkanUtils::Image::TransitionLayout(VkCommandBuffer cmdbuffer, VkImage image,
+void VulkanUtils::Image::TransitionLayout(VkDevice device, VkImage image,
 	VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange,
+	VkCommandPool commandPool, VkQueue queue,
 	VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
 {
+	VkCommandBuffer layoutCommandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
+	VulkanUtils::CommandBuffer::Begin(layoutCommandBuffer);
+
 	VkImageMemoryBarrier imageMemoryBarrier = VulkanInitializers::ImageMemoryBarrier();
 	imageMemoryBarrier.oldLayout = oldImageLayout;
 	imageMemoryBarrier.newLayout = newImageLayout;
@@ -547,9 +551,30 @@ void VulkanUtils::Image::TransitionLayout(VkCommandBuffer cmdbuffer, VkImage ima
 
 	// Put barrier inside setup command buffer
 	vkCmdPipelineBarrier(
-		cmdbuffer, srcStageMask, dstStageMask,
+		layoutCommandBuffer, srcStageMask, dstStageMask,
 		0, 0, nullptr, 0, nullptr,
 		1, &imageMemoryBarrier);
+
+	VulkanUtils::CommandBuffer::End(layoutCommandBuffer);
+	// TODO: Create command buffer pool and a queue in the deviceInfo.
+	VulkanUtils::Queue::Submit(layoutCommandBuffer, queue);
+	VulkanUtils::Queue::WaitIdle(queue);
+	VulkanFactory::CommandBuffer::Free(device, commandPool, layoutCommandBuffer);
+}
+
+void VulkanUtils::Image::Copy(VkDevice device, VkBuffer source, VkImage destination, VkImageLayout layout,
+	uint32_t width, uint32_t height, VkImageAspectFlags aspect, VkCommandPool commandPool, VkQueue queue)
+{
+	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
+	CommandBuffer::Begin(commandBuffer);
+
+	VkBufferImageCopy bufferImageCopy = VulkanInitializers::BufferImageCopy(aspect, width, height);
+	vkCmdCopyBufferToImage(commandBuffer, source, destination, layout, 1, &bufferImageCopy);
+
+	CommandBuffer::End(commandBuffer);
+	Queue::Submit(commandBuffer, queue);
+	Queue::WaitIdle(queue);
+	VulkanFactory::CommandBuffer::Free(device, commandPool, commandBuffer);
 }
 
 void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, void* source)
@@ -565,11 +590,12 @@ void VulkanUtils::Buffer::Copy(VkDevice device, VkBuffer source, VkBuffer destin
 	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
 	CommandBuffer::Begin(commandBuffer);
 
-	VkBufferCopy copyRegion = VulkanInitializers::BufferCopy(size, sourceOffset, destinationOffset);
-	vkCmdCopyBuffer(commandBuffer, source, destination, 1, &copyRegion);
+	VkBufferCopy bufferCopy = VulkanInitializers::BufferCopy(size, sourceOffset, destinationOffset);
+	vkCmdCopyBuffer(commandBuffer, source, destination, 1, &bufferCopy);
 
 	CommandBuffer::End(commandBuffer);
 	Queue::Submit(commandBuffer, queue);
+	Queue::WaitIdle(queue);
 	VulkanFactory::CommandBuffer::Free(device, commandPool, commandBuffer);
 }
 
@@ -656,4 +682,15 @@ void* VulkanUtils::Memory::Map(VkDevice device, VkDeviceMemory memory, VkDeviceS
 void VulkanUtils::Memory::Unmap(VkDevice device, VkDeviceMemory memory)
 {
 	vkUnmapMemory(device, memory);
+}
+
+void VulkanUtils::Memory::Flush(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size)
+{
+	VkMappedMemoryRange mappedMemoryRange{};
+	mappedMemoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mappedMemoryRange.memory = memory;
+	mappedMemoryRange.offset = offset;
+	mappedMemoryRange.size = size;
+	VkResult result = vkFlushMappedMemoryRanges(device, 1, &mappedMemoryRange);
+	assert(result == VK_SUCCESS);
 }

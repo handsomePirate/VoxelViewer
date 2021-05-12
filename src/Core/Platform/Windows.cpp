@@ -1,5 +1,5 @@
 #include "Platform.hpp"
-#include "Events/EventSystem.hpp"
+#include "Core/Events/EventSystem.hpp"
 
 #ifdef PLATFORM_WINDOWS
 #include <Windows.h>
@@ -97,12 +97,21 @@ void Core::Window::PollMessages()
     {
         TranslateMessage(&message);
         DispatchMessageA(&message);
+        if (message.message == WM_QUIT)
+        {
+            p_->shouldClose = true;
+        }
     }
 }
 
 bool Core::Window::ShouldClose() const
 {
     return p_->shouldClose;
+}
+
+bool Core::Window::IsMinimized() const
+{
+    return IsIconic(p_->handle);
 }
 
 void Core::Window::SetShouldClose()

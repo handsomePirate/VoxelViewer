@@ -1,5 +1,6 @@
 #pragma once
-#include "Common.hpp"
+#include "Core/Common.hpp"
+#include "Utils.hpp"
 #include <vector>
 
 namespace VulkanFactory
@@ -109,44 +110,9 @@ namespace VulkanFactory
 			VkExtent2D Extent;
 		};
 	};
-	class CommandBuffer
-	{
-	public:
-		static void AllocatePrimary(VkDevice device, VkCommandPool commandPool,
-			std::vector<VkCommandBuffer>& output, uint32_t bufferCount);
-		static VkCommandBuffer AllocatePrimary(VkDevice device, VkCommandPool commandPool);
-		static void Free(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& buffers);
-		static void Free(VkDevice device, VkCommandPool commandPool, VkCommandBuffer buffer);
-	};
-	class Image
-	{
-	public:
-		struct ImageInfo;
-		struct ImageInfo2;
-
-		static void Create(const Device::DeviceInfo& deviceInfo,
-			uint32_t width, uint32_t height, VkFormat format, ImageInfo& output);
-		static void Destroy(VkDevice device, ImageInfo& imageInfo);
-		static void Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
-			VkFormat format, VkCommandPool commandPool, VkQueue queue, ImageInfo2& output);
-		static void Destroy(VkDevice device, ImageInfo2& imageInfo);
-
-		struct ImageInfo
-		{
-			VkImage Image;
-			VkImageView View;
-			VkDeviceMemory Memory;
-		};
-
-		struct ImageInfo2
-		{
-			VkImage Image;
-			VkDescriptorImageInfo DescriptorImageInfo;
-			VkDeviceMemory Memory;
-		};
-	};
 	class Buffer
 	{
+	public:
 		struct BufferInfo;
 
 		static void Create(const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
@@ -161,6 +127,64 @@ namespace VulkanFactory
 			VkDescriptorBufferInfo DescriptorBufferInfo;
 			VkDeviceMemory Memory;
 			VkDeviceSize Size;
+		};
+	};
+	class CommandBuffer
+	{
+	public:
+		static void AllocatePrimary(VkDevice device, VkCommandPool commandPool,
+			std::vector<VkCommandBuffer>& output, uint32_t bufferCount);
+		static VkCommandBuffer AllocatePrimary(VkDevice device, VkCommandPool commandPool);
+		static void Free(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& buffers);
+		static void Free(VkDevice device, VkCommandPool commandPool, VkCommandBuffer buffer);
+
+		struct BuildData
+		{
+			uint32_t Width;
+			uint32_t Height;
+			VkRenderPass RenderPass;
+			VkFramebuffer Framebuffer;
+			VkImage Target;
+			VkPipeline Pipeline;
+			VkPipelineLayout PipelineLayout;
+			VkDescriptorSet DescriptorSet;
+		};
+		struct GuiBuildData
+		{
+			VkPipeline Pipeline;
+			VkPipelineLayout PipelineLayout;
+			VkDescriptorSet DescriptorSet;
+			VulkanUtils::PushConstantBlock* PushConstantBlock;
+			VulkanFactory::Buffer::BufferInfo* VertexBuffer;
+			VulkanFactory::Buffer::BufferInfo* IndexBuffer;
+		};
+		static void BuildDraw(VkCommandBuffer commandBuffer, const BuildData& data, const GuiBuildData& guiData);
+	};
+	class Image
+	{
+	public:
+		struct ImageInfo;
+		struct ImageInfo2;
+
+		static void Create(const Device::DeviceInfo& deviceInfo,
+			uint32_t width, uint32_t height, VkFormat format, ImageInfo& output);
+		static void Destroy(VkDevice device, ImageInfo& imageInfo);
+		static void Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
+			VkFormat format, VkImageUsageFlags usage, ImageInfo2& output);
+		static void Destroy(VkDevice device, ImageInfo2& imageInfo);
+
+		struct ImageInfo
+		{
+			VkImage Image;
+			VkImageView View;
+			VkDeviceMemory Memory;
+		};
+
+		struct ImageInfo2
+		{
+			VkImage Image;
+			VkDescriptorImageInfo DescriptorImageInfo;
+			VkDeviceMemory Memory;
 		};
 	};
 	class RenderPass
@@ -192,14 +216,18 @@ namespace VulkanFactory
 	class Pipeline
 	{
 	public:
-		static VkPipeline CreateGraphics(VkDevice device, VkRenderPass renderPass, const Swapchain::SwapchainInfo& swapchain,
+		static VkPipeline CreateGraphics(VkDevice device, VkRenderPass renderPass,
+			VkShaderModule vertexShader, VkShaderModule fragmentShader, VkPipelineLayout pipelineLayout,
+			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
+		static VkPipeline CreateGuiGraphics(VkDevice device, VkRenderPass renderPass,
 			VkShaderModule vertexShader, VkShaderModule fragmentShader, VkPipelineLayout pipelineLayout,
 			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
 		static VkPipeline CreateCompute(VkDevice device, VkPipelineLayout pipelineLayout, VkShaderModule computeShader,
 			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
 		static void Destroy(VkDevice device, VkPipeline pipeline);
 
-		static VkPipelineLayout CreateLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout);
+		static VkPipelineLayout CreateLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout,
+			VkPushConstantRange* pushConstantRanges = nullptr, uint32_t rangesCount = 0);
 		static void DestroyLayout(VkDevice device, VkPipelineLayout pipelineLayout);
 
 		static VkPipelineCache CreateCache(VkDevice device);

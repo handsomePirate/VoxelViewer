@@ -1,6 +1,6 @@
 #pragma once
-#include "Common.hpp"
-#include "Singleton.hpp"
+#include "Core/Common.hpp"
+#include "Core/Singleton.hpp"
 
 namespace Core
 {
@@ -12,6 +12,7 @@ namespace Core
 		uint64_t GetHandle() const;
 		void PollMessages();
 		bool ShouldClose() const;
+		bool IsMinimized() const;
 
 		void SetShouldClose();
 	private:

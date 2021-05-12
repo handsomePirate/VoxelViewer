@@ -1,5 +1,5 @@
 #include "Logger.hpp"
-#include "Platform/Platform.hpp"
+#include "Core/Platform/Platform.hpp"
 
 void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 {

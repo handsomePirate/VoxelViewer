@@ -1,5 +1,5 @@
 #pragma once
-#include "Common.hpp"
+#include "Core/Common.hpp"
 
 namespace Debug
 {

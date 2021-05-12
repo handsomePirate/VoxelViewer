@@ -1,6 +1,6 @@
 #pragma once
-#include "Common.hpp"
-#include "Singleton.hpp"
+#include "Core/Common.hpp"
+#include "Core/Singleton.hpp"
 
 namespace Core
 {

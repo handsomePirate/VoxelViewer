@@ -1,5 +1,5 @@
 #pragma once
-#include "Common.hpp"
+#include "Core/Common.hpp"
 #include "Utils.hpp"
 
 namespace VulkanInitializers
@@ -201,8 +201,8 @@ namespace VulkanInitializers
 		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyCreateInfo{};
 		pipelineInputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		pipelineInputAssemblyCreateInfo.topology = primitiveTopology;
-		pipelineInputAssemblyCreateInfo.flags = flags;
 		pipelineInputAssemblyCreateInfo.primitiveRestartEnable = primitiveRestartEnable;
+		pipelineInputAssemblyCreateInfo.flags = flags;
 		return pipelineInputAssemblyCreateInfo;
 	}
 
@@ -290,6 +290,40 @@ namespace VulkanInitializers
 		return pipelineShaderStageCreateInfo;
 	}
 
+	inline VkVertexInputBindingDescription VertexInputBindingDescription(uint32_t binding, uint32_t stride,
+		VkVertexInputRate inputRate)
+	{
+		VkVertexInputBindingDescription vertexInputBindingDescription{};
+		vertexInputBindingDescription.binding = binding;
+		vertexInputBindingDescription.stride = stride;
+		vertexInputBindingDescription.inputRate = inputRate;
+		return vertexInputBindingDescription;
+	}
+
+	inline VkVertexInputAttributeDescription VertexInputAttributeDescription(uint32_t binding, uint32_t location,
+		VkFormat format, uint32_t offset)
+	{
+		VkVertexInputAttributeDescription vertexInputAttributeDescription{};
+		vertexInputAttributeDescription.location = location;
+		vertexInputAttributeDescription.binding = binding;
+		vertexInputAttributeDescription.format = format;
+		vertexInputAttributeDescription.offset = offset;
+		return vertexInputAttributeDescription;
+	}
+
+	inline VkPipelineVertexInputStateCreateInfo PipelineVertexInputState(
+		VkVertexInputBindingDescription* vertexInputBindingDescriptions, uint32_t bindingDescriptionCount,
+		VkVertexInputAttributeDescription* vertexInputAttributeDescriptions, uint32_t attributeDescriptionCount)
+	{
+		VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo{};
+		pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = bindingDescriptionCount;
+		pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = vertexInputBindingDescriptions;
+		pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = attributeDescriptionCount;
+		pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions;
+		return pipelineVertexInputStateCreateInfo;
+	}
+
 	inline VkGraphicsPipelineCreateInfo GraphicsPipeline()
 	{
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
@@ -345,12 +379,15 @@ namespace VulkanInitializers
 		return descriptorSetLayoutCreateInfo;
 	}
 
-	inline VkPipelineLayoutCreateInfo PipelineLayout(VkDescriptorSetLayout* descriptorSetLayouts, uint32_t layoutCount)
+	inline VkPipelineLayoutCreateInfo PipelineLayout(VkDescriptorSetLayout* descriptorSetLayouts, uint32_t layoutCount,
+		VkPushConstantRange* pushConstantRanges, uint32_t rangeCount)
 	{
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = layoutCount;
 		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts;
+		pipelineLayoutCreateInfo.pushConstantRangeCount = rangeCount;
+		pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges;
 		return pipelineLayoutCreateInfo;
 	}
 
@@ -448,5 +485,25 @@ namespace VulkanInitializers
 		bufferCopy.srcOffset = sourceOffset;
 		bufferCopy.dstOffset = destinationOffset;
 		return bufferCopy;
+	}
+
+	inline VkBufferImageCopy BufferImageCopy(VkImageAspectFlags aspect, uint32_t width, uint32_t height)
+	{
+		VkBufferImageCopy bufferImageCopy{};
+		bufferImageCopy.imageSubresource.aspectMask = aspect;
+		bufferImageCopy.imageSubresource.layerCount = 1;
+		bufferImageCopy.imageExtent.width = width;
+		bufferImageCopy.imageExtent.height = height;
+		bufferImageCopy.imageExtent.depth = 1;
+		return bufferImageCopy;
+	}
+
+	inline VkPushConstantRange PushConstantRange(VkShaderStageFlags stageFlags, uint32_t size, uint32_t offset)
+	{
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = stageFlags;
+		pushConstantRange.offset = offset;
+		pushConstantRange.size = size;
+		return pushConstantRange;
 	}
 };
