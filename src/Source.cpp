@@ -187,8 +187,8 @@ int main(int argc, char* argv[])
 	//=========================== Window and swapchain setup =========================
 
 #pragma region Window and surface
-	uint32_t windowWidth = 640;
-	uint32_t windowHeight = 480;
+	uint32_t windowWidth = 1280;
+	uint32_t windowHeight = 720;
 	Core::Window* window = CorePlatform.GetNewWindow(CoreFilesystem.ExecutableName().c_str(), 50, 50, windowWidth, windowHeight);
 	VkSurfaceKHR surface = VulkanFactory::Surface::Create(instance, window->GetHandle());
 #pragma endregion

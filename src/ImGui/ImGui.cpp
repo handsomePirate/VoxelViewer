@@ -23,6 +23,8 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	ImGui::Text("(%.1f fps)", fps);
 	ImGui::End();
 
+	ImGui::ShowDemoWindow();
+
 	ImGui::Render();
 
 	return UpdateInternal(deviceInfo, guiVertexBuffer, guiIndexBuffer);
