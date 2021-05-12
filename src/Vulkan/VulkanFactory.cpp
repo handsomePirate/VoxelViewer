@@ -41,7 +41,7 @@ void VulkanFactory::Instance::Destroy(VkInstance instance)
 void VulkanFactory::Device::Create(
 	VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures& enabledFeatures,
 	std::vector<const char*> extensions, DeviceInfo& output,
-	VkQueueFlags requestedQueueTypes, bool debugMarkersEnabled)
+	VkQueueFlags requestedQueueTypes)
 {
 	output.PhysicalDevice = physicalDevice;
 	output.Properties = VulkanUtils::Device::GetPhysicalDeviceProperties(physicalDevice);
@@ -52,7 +52,6 @@ void VulkanFactory::Device::Create(
 
 	assert(output.DepthFormat != VK_FORMAT_UNDEFINED);
 
-	output.DebugMarkersEnabled = debugMarkersEnabled;
 	std::vector<VkDeviceQueueCreateInfo> queueInitializers{};
 
 	const float defaultPriority = 0.f;

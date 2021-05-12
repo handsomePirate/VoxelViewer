@@ -20,8 +20,7 @@ namespace VulkanFactory
 		static void Create(VkPhysicalDevice physicalDevice,
 			VkPhysicalDeviceFeatures& enabledFeatures, std::vector<const char*> extensions,
 			DeviceInfo& output,
-			VkQueueFlags requestedQueueTypes = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT,
-			bool debugMarkersEnabled = false);
+			VkQueueFlags requestedQueueTypes = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
 		static void Destroy(DeviceInfo& deviceInfo);
 		
 		struct DeviceInfo

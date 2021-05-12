@@ -176,16 +176,6 @@ int main(int argc, char* argv[])
 #pragma region Device features and extensions
 	VkPhysicalDeviceFeatures requestedFeatures{};
 	std::vector<const char*> deviceExtensions;
-	bool debugMarkersEnabled = false;
-	if (enableVulkanDebug)
-	{
-		deviceExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
-		debugMarkersEnabled = VulkanUtils::Device::CheckExtensionsSupported(pickedDevice, deviceExtensions);
-		if (!debugMarkersEnabled)
-		{
-			deviceExtensions.clear();
-		}
-	}
 	if (useSwapchain)
 	{
 		deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
@@ -195,16 +185,9 @@ int main(int argc, char* argv[])
 #pragma region Device
 	VulkanFactory::Device::DeviceInfo deviceInfo;
 	VulkanFactory::Device::Create(pickedDevice,requestedFeatures, deviceExtensions,
-		deviceInfo, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, debugMarkersEnabled);
+		deviceInfo, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
 
 	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", deviceInfo.Properties.deviceName);
-#pragma endregion
-
-#pragma region Debug markers
-	if (enableVulkanDebug && debugMarkersEnabled)
-	{
-		Debug::Markers::Setup(deviceInfo.Handle);
-	}
 #pragma endregion
 
 	//=========================== Window and swapchain setup =========================
