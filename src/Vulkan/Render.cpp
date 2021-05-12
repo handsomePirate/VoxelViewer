@@ -14,7 +14,7 @@ uint32_t VulkanRender::PrepareFrame(const Context& context, const WindowData& wi
 	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
 	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
 	{
-		CoreLogger.Log(Core::LoggerSeverity::Warn, "Should resize Vulkan structures.");
+		CoreLogWarn("Should resize Vulkan structures.");
 	}
 	else
 	{
@@ -77,7 +77,7 @@ void PresentFrame(VkQueue queue, VkSwapchainKHR swapchain, VkSemaphore renderSem
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			// Swap chain is no longer compatible with the surface and needs to be recreated
-			CoreLogger.Log(Core::LoggerSeverity::Warn, "Should resize Vulkan structures.");
+			CoreLogWarn("Should resize Vulkan structures.");
 			return;
 		}
 		else

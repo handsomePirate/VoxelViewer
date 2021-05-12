@@ -38,7 +38,7 @@ std::vector<VkPhysicalDevice> VulkanUtils::Device::EnumeratePhysicalDevices(VkIn
 
 	if (result == VK_ERROR_INITIALIZATION_FAILED || deviceCount == 0)
 	{
-		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to find any GPUs with Vulkan support.");
+		CoreLogFatal("Failed to find any GPUs with Vulkan support.");
 		return {};
 	}
 
@@ -120,7 +120,7 @@ bool VulkanUtils::Device::CheckExtensionsSupported(VkPhysicalDevice device, cons
 
 	if (result != VK_SUCCESS || extensionCount == 0)
 	{
-		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to enumerate GPU devices.");
+		CoreLogFatal("Failed to enumerate GPU devices.");
 		return false;
 	}
 
@@ -228,12 +228,12 @@ uint32_t VulkanUtils::Device::GetPresentQueueIndex(VkPhysicalDevice device, VkSu
 	{
 		if (supportsPresent[i])
 		{
-			CoreLogger.Log(Core::LoggerSeverity::Warn, "Present queue doesn't match graphics queue.");
+			CoreLogWarn("Present queue doesn't match graphics queue.");
 			return i;
 		}
 	}
 
-	CoreLogger.Log(Core::LoggerSeverity::Fatal, "Couldn't find a present queue!");
+	CoreLogFatal("Couldn't find a present queue!");
 	return 0;
 }
 
@@ -280,7 +280,7 @@ uint32_t VulkanUtils::Queue::GetQueueFamilyIndex(const std::vector<VkQueueFamily
 		}
 	}
 
-	CoreLogger.Log(Core::LoggerSeverity::Error, "Could not find matching queue family index.");
+	CoreLogError("Could not find matching queue family index.");
 	return UINT32_MAX;
 }
 
@@ -633,7 +633,7 @@ uint32_t VulkanUtils::Memory::GetTypeIndex(VkPhysicalDeviceMemoryProperties memo
 		}
 	}
 
-	CoreLogger.Log(Core::LoggerSeverity::Fatal, "Couldn't find a matching memory type!");
+	CoreLogFatal("Couldn't find a matching memory type!");
 	return UINT32_MAX;
 }
 

@@ -44,7 +44,7 @@ struct EventLogger
 			break;
 		}
 
-		CoreLogger.Log(Core::LoggerSeverity::Trace, "Button pressed; data = %s", keyName.c_str());
+		CoreLogTrace("Button pressed; data = %s", keyName.c_str());
 		return true;
 	}
 
@@ -62,41 +62,39 @@ struct EventLogger
 			break;
 		}
 
-		CoreLogger.Log(Core::LoggerSeverity::Trace, "Mouse pressed at (%hu, %hu) with %s button", 
+		CoreLogTrace("Mouse pressed at (%hu, %hu) with %s button",
 			context.data.u16[0], context.data.u16[1], whichButtonString.c_str());
 		return true;
 	}
 
 	bool WindowResized(Core::EventCode code, Core::EventData context)
 	{
-		CoreLogger.Log(Core::LoggerSeverity::Trace, "Window resized to (%hu, %hu)",
+		CoreLogTrace("Window resized to (%hu, %hu)",
 			context.data.u16[0], context.data.u16[1]);
 		return true;
 	}
 
 	bool VulkanValidation(Core::EventCode code, Core::EventData context)
 	{
-		Core::LoggerSeverity severity = Core::LoggerSeverity::Debug;
+		const VkDebugUtilsMessengerCallbackDataEXT* callbackData =
+			(const VkDebugUtilsMessengerCallbackDataEXT*)context.data.u64[0];
+
 		switch ((VkDebugUtilsMessageSeverityFlagBitsEXT)context.data.u32[2])
 		{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			severity = Core::LoggerSeverity::Trace;
+			CoreLogTrace("%s", callbackData->pMessage);
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			severity = Core::LoggerSeverity::Info;
+			CoreLogInfo("%s", callbackData->pMessage);
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			severity = Core::LoggerSeverity::Warn;
+			CoreLogWarn("%s", callbackData->pMessage);
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			severity = Core::LoggerSeverity::Error;
+			CoreLogError("%s", callbackData->pMessage);
 			break;
 		}
 
-		const VkDebugUtilsMessengerCallbackDataEXT* callbackData = 
-			(const VkDebugUtilsMessengerCallbackDataEXT*)context.data.u64[0];
-
-		CoreLogger.Log(severity, "%s", callbackData->pMessage);
 		return true;
 	}
 };
@@ -164,8 +162,6 @@ int main(int argc, char* argv[])
 	for (int d = 0; d < physicalDevices.size(); ++d)
 	{
 		auto deviceProperties = VulkanUtils::Device::GetPhysicalDeviceProperties(physicalDevices[d]);
-
-		CoreLogger.Log(Core::LoggerSeverity::Debug, "Found device (%i): %s", d, deviceProperties.deviceName);
 	}
 
 	VkPhysicalDevice pickedDevice = VulkanUtils::Device::PickDevice(physicalDevices);
@@ -186,8 +182,6 @@ int main(int argc, char* argv[])
 	VulkanFactory::Device::DeviceInfo deviceInfo;
 	VulkanFactory::Device::Create(pickedDevice,requestedFeatures, deviceExtensions,
 		deviceInfo, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
-
-	CoreLogger.Log(Core::LoggerSeverity::Debug, "Picked %s", deviceInfo.Properties.deviceName);
 #pragma endregion
 
 	//=========================== Window and swapchain setup =========================
@@ -534,7 +528,7 @@ int main(int argc, char* argv[])
 				(float)windowWidth, (float)windowHeight, renderDelta, fps);
 			if (updated)
 			{
-				CoreLogger.Log(Core::LoggerSeverity::Trace, "Updating command buffers. Fps == %f", fps);
+				CoreLogTrace("Updating command buffers. Fps == %f", fps);
 				for (int i = 0; i < (int)drawCommandBuffers.size(); ++i)
 				{
 					commandBufferBuildData.Framebuffer = framebuffers[i];

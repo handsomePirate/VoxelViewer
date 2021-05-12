@@ -116,7 +116,7 @@ void VulkanFactory::Device::Create(
 
 	if (result != VK_SUCCESS)
 	{
-		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to connect with the graphics driver.");
+		CoreLogFatal("Failed to connect with the graphics driver.");
 	}
 }
 
@@ -224,7 +224,7 @@ void VulkanFactory::Swapchain::Create(const Device::DeviceInfo& deviceInfo,
 
 	if (result != VK_SUCCESS)
 	{
-		CoreLogger.Log(Core::LoggerSeverity::Fatal, "Failed to create swapchain!");
+		CoreLogFatal("Failed to create swapchain!");
 	}
 
 	if (oldSwapchainProvided)
@@ -816,7 +816,7 @@ VkShaderModule VulkanFactory::Shader::Create(VkDevice device, const std::string&
 
 		if (!f)
 		{
-			CoreLogger.Log(Core::LoggerSeverity::Error, "Failed to load shader code.");
+			CoreLogError("Failed to load shader code.");
 			return VK_NULL_HANDLE;
 		}
 

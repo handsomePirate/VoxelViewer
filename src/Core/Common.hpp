@@ -1,5 +1,7 @@
 #pragma once
 
+//#define LOGGER_DO_TRACE
+
 #include <vulkan/vulkan.hpp>
 
 #include <cstdlib>

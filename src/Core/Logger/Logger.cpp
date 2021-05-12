@@ -1,6 +1,8 @@
 #include "Logger.hpp"
 #include "Core/Platform/Platform.hpp"
 
+#define FORBID_TRACE
+
 void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 {
 	va_list args;
