@@ -445,7 +445,8 @@ void VulkanUtils::Image::TransitionLayout(VkDevice device, VkImage image,
 	VkCommandPool commandPool, VkQueue queue,
 	VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
 {
-	VkCommandBuffer layoutCommandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
+	VkCommandBuffer layoutCommandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(
+		"Tmp Image Layout Transition CB", device, commandPool);
 	VulkanUtils::CommandBuffer::Begin(layoutCommandBuffer);
 
 	VkImageMemoryBarrier imageMemoryBarrier = VulkanInitializers::ImageMemoryBarrier();
@@ -565,7 +566,8 @@ void VulkanUtils::Image::TransitionLayout(VkDevice device, VkImage image,
 void VulkanUtils::Image::Copy(VkDevice device, VkBuffer source, VkImage destination, VkImageLayout layout,
 	uint32_t width, uint32_t height, VkImageAspectFlags aspect, VkCommandPool commandPool, VkQueue queue)
 {
-	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
+	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(
+		"Tmp Image Copy CB", device, commandPool);
 	CommandBuffer::Begin(commandBuffer);
 
 	VkBufferImageCopy bufferImageCopy = VulkanInitializers::BufferImageCopy(aspect, width, height);
@@ -587,7 +589,8 @@ void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceS
 void VulkanUtils::Buffer::Copy(VkDevice device, VkBuffer source, VkBuffer destination, VkDeviceSize size,
 	VkCommandPool commandPool, VkQueue queue, VkDeviceSize sourceOffset, VkDeviceSize destinationOffset)
 {
-	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(device, commandPool);
+	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(
+		"Tmp Buffer Copy CB", device, commandPool);
 	CommandBuffer::Begin(commandBuffer);
 
 	VkBufferCopy bufferCopy = VulkanInitializers::BufferCopy(size, sourceOffset, destinationOffset);

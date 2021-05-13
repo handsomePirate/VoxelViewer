@@ -193,7 +193,7 @@ bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		{
 			VulkanFactory::Buffer::Destroy(deviceInfo, vertexBuffer);
 		}
-		VulkanFactory::Buffer::Create(deviceInfo, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize,
+		VulkanFactory::Buffer::Create("GUI Vertex Buffer", deviceInfo, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vertexBuffer);
 		vertexCount = imDrawData->TotalVtxCount;
 		updateCmdBuffers = true;
@@ -207,7 +207,7 @@ bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		{
 			VulkanFactory::Buffer::Destroy(deviceInfo, indexBuffer);
 		}
-		VulkanFactory::Buffer::Create(deviceInfo, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize,
+		VulkanFactory::Buffer::Create("GUI Index Buffer", deviceInfo, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, indexBuffer);
 		indexCount = imDrawData->TotalIdxCount;
 		updateCmdBuffers = true;

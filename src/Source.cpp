@@ -134,8 +134,10 @@ int main(int argc, char* argv[])
 
 #pragma region Device
 	VulkanFactory::Device::DeviceInfo deviceInfo;
-	VulkanFactory::Device::Create(pickedDevice,requestedFeatures, deviceExtensions,
+	VulkanFactory::Device::Create(pickedDevice, requestedFeatures, deviceExtensions,
 		deviceInfo, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
+
+	Debug::Utils::SetPhysicalDeviceName(deviceInfo.Handle, pickedDevice, deviceInfo.Properties.deviceName);
 #pragma endregion
 
 	//=========================== Window and swapchain setup =========================
@@ -144,7 +146,7 @@ int main(int argc, char* argv[])
 	uint32_t windowWidth = 1280;
 	uint32_t windowHeight = 720;
 	Core::Window* window = CorePlatform.GetNewWindow(CoreFilesystem.ExecutableName().c_str(), 50, 50, windowWidth, windowHeight);
-	VkSurfaceKHR surface = VulkanFactory::Surface::Create(instance, window->GetHandle());
+	VkSurfaceKHR surface = VulkanFactory::Surface::Create("Win32 Window Surface", deviceInfo.Handle, instance, window->GetHandle());
 #pragma endregion
 
 #pragma region Device info completion
@@ -166,61 +168,68 @@ int main(int argc, char* argv[])
 
 #pragma region Swapchain
 	VulkanFactory::Swapchain::SwapchainInfo swapchainInfo;
-	VulkanFactory::Swapchain::Create(deviceInfo, windowWidth, windowHeight, surface, swapchainInfo);
+	VulkanFactory::Swapchain::Create("VV Swapchain", deviceInfo, windowWidth, windowHeight, surface, swapchainInfo);
 #pragma endregion
 
 	//=========================== Rendering structures ===============================
 
 #pragma region Command buffers
 	VkCommandPool graphicsCommandPool = VulkanFactory::CommandPool::Create(
-		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.graphics,
+		"Graphics Command Pool", deviceInfo.Handle, deviceInfo.QueueFamilyIndices.graphics,
 		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 	std::vector<VkCommandBuffer> drawCommandBuffers;
+	drawCommandBuffers.resize(swapchainInfo.Images.size());
 	VulkanFactory::CommandBuffer::AllocatePrimary(deviceInfo.Handle, graphicsCommandPool,
-		drawCommandBuffers, (uint32_t)swapchainInfo.Images.size());
+		drawCommandBuffers.data(), (uint32_t)drawCommandBuffers.size());
+	for (int c = 0; c < drawCommandBuffers.size(); ++c)
+	{
+		assert(c < 1000);
+		char commandBufferName[sizeof("Draw Command Buffer ") + 3 + sizeof(char)];
+		sprintf_s(commandBufferName, "Draw Command Buffer %d", c);
 
-	VkCommandPool computeCommandPool = VulkanFactory::CommandPool::Create(
+		Debug::Utils::SetCommandBufferName(deviceInfo.Handle, drawCommandBuffers[c], commandBufferName);
+	}
+
+	VkCommandPool computeCommandPool = VulkanFactory::CommandPool::Create( "Compute Command Pool",
 		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.compute,
 		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-	VkCommandBuffer computeCommandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(
+	VkCommandBuffer computeCommandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary("Compute Command Buffer",
 		deviceInfo.Handle, computeCommandPool);
 #pragma endregion
 
 #pragma region Queues
-	VkQueue graphicsQueue = VulkanFactory::Queue::Get(
+	VkQueue graphicsQueue = VulkanFactory::Queue::Get("Graphics Queue",
 		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.graphics);
 
-	VkQueue computeQueue = VulkanFactory::Queue::Get(
+	VkQueue computeQueue = VulkanFactory::Queue::Get("Compute Queue",
 		deviceInfo.Handle, deviceInfo.QueueFamilyIndices.compute);
 #pragma endregion
 
 #pragma region Synchronization primitives
-	VkSemaphore renderSemaphore = VulkanFactory::Semaphore::Create(deviceInfo.Handle);
-	VkSemaphore presentSemaphore = VulkanFactory::Semaphore::Create(deviceInfo.Handle);
-	std::vector<VkFence> fences;
-	fences.resize(swapchainInfo.Images.size());
-	for (auto& fence : fences)
-	{
-		fence = VulkanFactory::Fence::Create(deviceInfo.Handle, VK_FENCE_CREATE_SIGNALED_BIT);
-	}
+	VkSemaphore renderSemaphore = VulkanFactory::Semaphore::Create("Render Semaphore", deviceInfo.Handle);
+	VkSemaphore presentSemaphore = VulkanFactory::Semaphore::Create("Present Semaphore", deviceInfo.Handle);
 
-	VkFence computeFence = VulkanFactory::Fence::Create(deviceInfo.Handle, VK_FENCE_CREATE_SIGNALED_BIT);
+	VkFence computeFence = VulkanFactory::Fence::Create("Compute Fence", deviceInfo.Handle, VK_FENCE_CREATE_SIGNALED_BIT);
 #pragma endregion
 
 #pragma region Framebuffer
 	VulkanFactory::Image::ImageInfo depthStencil;
-	VulkanFactory::Image::Create(deviceInfo, windowWidth, windowHeight, deviceInfo.DepthFormat, depthStencil);
+	VulkanFactory::Image::Create("Depth Stencil Image", deviceInfo, windowWidth, windowHeight, deviceInfo.DepthFormat, depthStencil);
 
-	VkRenderPass renderPass = VulkanFactory::RenderPass::Create(deviceInfo.Handle,
+	VkRenderPass renderPass = VulkanFactory::RenderPass::Create("VV Display Render Pass", deviceInfo.Handle,
 		deviceInfo.SurfaceFormat.format, deviceInfo.DepthFormat);
 
 	std::vector<VkFramebuffer> framebuffers;
 	framebuffers.resize(swapchainInfo.Images.size());
 	for (int f = 0; f < framebuffers.size(); ++f)
 	{
-		framebuffers[f] = VulkanFactory::Framebuffer::Create(deviceInfo.Handle, renderPass,
+		assert(f < 1000);
+		char framebufferName[sizeof("VV Framebuffer ") + 3 + sizeof(char)];
+		sprintf_s(framebufferName, "VV Framebuffer %d", f);
+
+		framebuffers[f] = VulkanFactory::Framebuffer::Create(framebufferName, deviceInfo.Handle, renderPass,
 			windowWidth, windowHeight, swapchainInfo.ImageViews[f], depthStencil.View);
 	}
 #pragma endregion
@@ -229,11 +238,14 @@ int main(int argc, char* argv[])
 
 #pragma region Shaders
 	std::string vertexShaderPath = CoreFilesystem.GetAbsolutePath("simple.vert.glsl.spv");
-	VkShaderModule vertexShader = VulkanFactory::Shader::Create(deviceInfo.Handle, vertexShaderPath);
+	VkShaderModule vertexShader = VulkanFactory::Shader::Create("Passthrough Vertex Shader Module",
+		deviceInfo.Handle, vertexShaderPath);
 	std::string fragmentShaderPath = CoreFilesystem.GetAbsolutePath("simple.frag.glsl.spv");
-	VkShaderModule fragmentShader = VulkanFactory::Shader::Create(deviceInfo.Handle, fragmentShaderPath);
+	VkShaderModule fragmentShader = VulkanFactory::Shader::Create("Passthrough Fragment Shader Module",
+		deviceInfo.Handle, fragmentShaderPath);
 	std::string computeShaderPath = CoreFilesystem.GetAbsolutePath("simple.comp.glsl.spv");
-	VkShaderModule computeShader = VulkanFactory::Shader::Create(deviceInfo.Handle, computeShaderPath);
+	VkShaderModule computeShader = VulkanFactory::Shader::Create("Trace Compute Shader Module",
+		deviceInfo.Handle, computeShaderPath);
 #pragma endregion
 
 	// TODO: Storage & Uniform buffers.
@@ -243,7 +255,7 @@ int main(int argc, char* argv[])
 	const int targetWidth = 2048;
 	const int targetHeight = 2048;
 	VulkanFactory::Image::ImageInfo2 renderTarget;
-	VulkanFactory::Image::Create(deviceInfo, targetWidth, targetHeight, VK_FORMAT_R8G8B8A8_UNORM,
+	VulkanFactory::Image::Create("Compute Texture Target", deviceInfo, targetWidth, targetHeight, VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, renderTarget);
 
 	auto subresourceRangeInitializer = VulkanInitializers::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
@@ -259,16 +271,17 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),
 	};
-	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool(deviceInfo.Handle,
-		descriptorPoolSizes.data(), (uint32_t)descriptorPoolSizes.size(), 3);
+	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool("Compute and Display Descriptor Pool",
+		deviceInfo.Handle, descriptorPoolSizes.data(), (uint32_t)descriptorPoolSizes.size(), 3);
 
 	VkDescriptorSetLayoutBinding rasterizationLayoutBinding = VulkanInitializers::DescriptorSetLayoutBinding(
 		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-	VkDescriptorSetLayout rasterizationSetLayout = VulkanFactory::Descriptor::CreateSetLayout(deviceInfo.Handle,
-		&rasterizationLayoutBinding, 1);
+	VkDescriptorSetLayout rasterizationSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Display Descriptor Set Layout",
+		deviceInfo.Handle, &rasterizationLayoutBinding, 1);
 	
 	VkDescriptorSet rasterizationSet = VulkanFactory::Descriptor::AllocateSet(deviceInfo.Handle, descriptorPool,
 		rasterizationSetLayout);
+	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Display Descriptor Set");
 	VulkanUtils::Descriptor::WriteImageSet(deviceInfo.Handle, rasterizationSet, &renderTarget.DescriptorImageInfo);
 
 	std::vector<VkDescriptorSetLayoutBinding> computeLayoutBindings =
@@ -278,19 +291,22 @@ int main(int argc, char* argv[])
 		//VulkanInitializers::DescriptorSetLayoutBinding(
 		//	VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 	};
-	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout(deviceInfo.Handle,
-		computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
+	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
+		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
 
 	VkDescriptorSet computeSet = VulkanFactory::Descriptor::AllocateSet(deviceInfo.Handle, descriptorPool,
 		computeSetLayout);
+	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, &renderTarget.DescriptorImageInfo/*, storageBufferInfo*/);
 #pragma endregion
 
 #pragma region Pipelines
-	VkPipelineLayout graphicsPipelineLayout = VulkanFactory::Pipeline::CreateLayout(deviceInfo.Handle, rasterizationSetLayout);
-	VkPipelineLayout computePipelineLayout = VulkanFactory::Pipeline::CreateLayout(deviceInfo.Handle, computeSetLayout);
+	VkPipelineLayout graphicsPipelineLayout = VulkanFactory::Pipeline::CreateLayout("Display Pipeline Layout",
+		deviceInfo.Handle, rasterizationSetLayout);
+	VkPipelineLayout computePipelineLayout = VulkanFactory::Pipeline::CreateLayout("Trace Pipeline Layout",
+		deviceInfo.Handle, computeSetLayout);
 
-	VkPipelineCache pipelineCache = VulkanFactory::Pipeline::CreateCache(deviceInfo.Handle);
+	VkPipelineCache pipelineCache = VulkanFactory::Pipeline::CreateCache("VV General Pipeline Cache", deviceInfo.Handle);
 	
 	VkPipeline graphicsPipeline = VulkanFactory::Pipeline::CreateGraphics(deviceInfo.Handle, renderPass,
 		vertexShader, fragmentShader, graphicsPipelineLayout, pipelineCache);
@@ -320,13 +336,13 @@ int main(int argc, char* argv[])
 	
 	// Font image attachment creation.
 	VulkanFactory::Image::ImageInfo2 guiFontAttachment;
-	VulkanFactory::Image::Create(deviceInfo, guiTargetWidth, guiTargetHeight, VK_FORMAT_R8G8B8A8_UNORM,
+	VulkanFactory::Image::Create("GUI Font Attachment", deviceInfo, guiTargetWidth, guiTargetHeight, VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, guiFontAttachment);
 
 	// Copy of the image to the GPU using a staging buffer
 	VkDeviceSize uploadSize = guiTargetWidth * guiTargetHeight * 4 * sizeof(char);
 	VulkanFactory::Buffer::BufferInfo stagingBufferInfo;
-	VulkanFactory::Buffer::Create(deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, uploadSize,
+	VulkanFactory::Buffer::Create("GUI Font Image Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, uploadSize,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBufferInfo);
 	
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, stagingBufferInfo.Memory, 0, uploadSize, fontData);
@@ -358,29 +374,32 @@ int main(int argc, char* argv[])
 	{
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
 	};
-	VkDescriptorPool guiDescriptorPool = VulkanFactory::Descriptor::CreatePool(deviceInfo.Handle,
+	VkDescriptorPool guiDescriptorPool = VulkanFactory::Descriptor::CreatePool("GUI Descriptor Pool", deviceInfo.Handle,
 		guiDescriptorPoolSizes.data(), (uint32_t)guiDescriptorPoolSizes.size(), 2);
 	
 	VkDescriptorSetLayoutBinding guiLayoutBinding = VulkanInitializers::DescriptorSetLayoutBinding(
 		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-	VkDescriptorSetLayout guiDescriptorSetLayout = VulkanFactory::Descriptor::CreateSetLayout(deviceInfo.Handle,
-		&guiLayoutBinding, 1);
+	VkDescriptorSetLayout guiDescriptorSetLayout = VulkanFactory::Descriptor::CreateSetLayout("GUI Descriptor Set Layout",
+		deviceInfo.Handle, &guiLayoutBinding, 1);
 
 	VkDescriptorSet guiDescriptorSet = VulkanFactory::Descriptor::AllocateSet(deviceInfo.Handle, guiDescriptorPool,
 		guiDescriptorSetLayout);
+	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, guiDescriptorSet, "GUI Descriptor Set");
 	VulkanUtils::Descriptor::WriteImageSet(deviceInfo.Handle, guiDescriptorSet, &guiFontAttachment.DescriptorImageInfo);
 
 	// Shaders.
 	std::string guiVertexShaderPath = CoreFilesystem.GetAbsolutePath("ui.vert.glsl.spv");
-	VkShaderModule guiVertexShader = VulkanFactory::Shader::Create(deviceInfo.Handle, guiVertexShaderPath);
+	VkShaderModule guiVertexShader = VulkanFactory::Shader::Create("GUI Vertex Shader Module",
+		deviceInfo.Handle, guiVertexShaderPath);
 	std::string guiFragmentShaderPath = CoreFilesystem.GetAbsolutePath("ui.frag.glsl.spv");
-	VkShaderModule guiFragmentShader = VulkanFactory::Shader::Create(deviceInfo.Handle, guiFragmentShaderPath);
+	VkShaderModule guiFragmentShader = VulkanFactory::Shader::Create("GUI Fragment Shader Module",
+		deviceInfo.Handle, guiFragmentShaderPath);
 
 	// Pipeline.
 	auto pushConstantRangeInitializer = VulkanInitializers::PushConstantRange(VK_SHADER_STAGE_VERTEX_BIT,
 		sizeof(VulkanUtils::PushConstantBlock), 0);
-	VkPipelineLayout guiPipelineLayout = VulkanFactory::Pipeline::CreateLayout(deviceInfo.Handle, guiDescriptorSetLayout,
-		&pushConstantRangeInitializer, 1);
+	VkPipelineLayout guiPipelineLayout = VulkanFactory::Pipeline::CreateLayout("GUI Pipeline Layout", deviceInfo.Handle,
+		guiDescriptorSetLayout, &pushConstantRangeInitializer, 1);
 
 	VkPipeline guiPipeline = VulkanFactory::Pipeline::CreateGuiGraphics(deviceInfo.Handle, renderPass,
 		guiVertexShader, guiFragmentShader, guiPipelineLayout, pipelineCache);
@@ -452,7 +471,6 @@ int main(int argc, char* argv[])
 			currentImageIndex = VulkanRender::PrepareFrame(renderingContext, windowData);
 
 			renderingFrameData.CommandBuffer = drawCommandBuffers[currentImageIndex];
-			renderingFrameData.Fence = fences[currentImageIndex];
 			renderingFrameData.ImageIndex = currentImageIndex;
 
 			VulkanRender::RenderFrame(renderingContext, windowData, renderingFrameData);
@@ -546,10 +564,6 @@ int main(int argc, char* argv[])
 	VulkanFactory::Image::Destroy(deviceInfo.Handle, depthStencil);
 
 	VulkanFactory::Fence::Destroy(deviceInfo.Handle, computeFence);
-	for (auto& fence : fences)
-	{
-		VulkanFactory::Fence::Destroy(deviceInfo.Handle, fence);
-	}
 
 	VulkanFactory::Swapchain::Destroy(deviceInfo, swapchainInfo);
 

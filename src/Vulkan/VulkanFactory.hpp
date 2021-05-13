@@ -61,39 +61,40 @@ namespace VulkanFactory
 	class CommandPool
 	{
 	public:
-		static VkCommandPool Create(VkDevice device, uint32_t queueIndex, VkCommandPoolCreateFlags flags = 0);
+		static VkCommandPool Create(const char* name, VkDevice device, uint32_t queueIndex,
+			VkCommandPoolCreateFlags flags = 0);
 		static void Destroy(VkDevice device, VkCommandPool commandPool);
 	};
 	class Semaphore
 	{
 	public:
-		static VkSemaphore Create(VkDevice device);
+		static VkSemaphore Create(const char* name, VkDevice device);
 		static void Destroy(VkDevice device, VkSemaphore semaphore);
 	};
 	class Fence
 	{
 	public:
-		static VkFence Create(VkDevice device, VkFenceCreateFlags flags = 0);
+		static VkFence Create(const char* name, VkDevice device, VkFenceCreateFlags flags = 0);
 		static void Destroy(VkDevice device, VkFence fence);
 	};
 	class Surface
 	{
 	public:
-		static VkSurfaceKHR Create(VkInstance instance, uint64_t windowHandle);
+		static VkSurfaceKHR Create(const char* name, VkDevice device, VkInstance instance, uint64_t windowHandle);
 		static void Destroy(VkInstance instance, VkSurfaceKHR surface);
 	};
 	class Queue
 	{
 	public:
-		static VkQueue Get(VkDevice device, uint32_t queueFamily, uint32_t queueIndex = 0);
+		static VkQueue Get(const char* name, VkDevice device, uint32_t queueFamily, uint32_t queueIndex = 0);
 	};
 	class Swapchain
 	{
 	public:
 		struct SwapchainInfo;
 
-		static void Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height, VkSurfaceKHR surface,
-			SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo = nullptr);
+		static void Create(const char* name, const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
+			VkSurfaceKHR surface, SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo = nullptr);
 		static void Destroy(const Device::DeviceInfo& deviceInfo, SwapchainInfo& swapchainInfo);
 
 		struct SwapchainInfo
@@ -114,7 +115,7 @@ namespace VulkanFactory
 	public:
 		struct BufferInfo;
 
-		static void Create(const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
+		static void Create(const char* name, const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
 			VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, BufferInfo& output);
 		static void Destroy(const Device::DeviceInfo& deviceInfo, BufferInfo& bufferInfo);
 
@@ -132,8 +133,8 @@ namespace VulkanFactory
 	{
 	public:
 		static void AllocatePrimary(VkDevice device, VkCommandPool commandPool,
-			std::vector<VkCommandBuffer>& output, uint32_t bufferCount);
-		static VkCommandBuffer AllocatePrimary(VkDevice device, VkCommandPool commandPool);
+			VkCommandBuffer* output, uint32_t bufferCount);
+		static VkCommandBuffer AllocatePrimary(const char* name, VkDevice device, VkCommandPool commandPool);
 		static void Free(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& buffers);
 		static void Free(VkDevice device, VkCommandPool commandPool, VkCommandBuffer buffer);
 
@@ -165,10 +166,10 @@ namespace VulkanFactory
 		struct ImageInfo;
 		struct ImageInfo2;
 
-		static void Create(const Device::DeviceInfo& deviceInfo,
+		static void Create(const char* name, const Device::DeviceInfo& deviceInfo,
 			uint32_t width, uint32_t height, VkFormat format, ImageInfo& output);
 		static void Destroy(VkDevice device, ImageInfo& imageInfo);
-		static void Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
+		static void Create(const char* name, const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
 			VkFormat format, VkImageUsageFlags usage, ImageInfo2& output);
 		static void Destroy(VkDevice device, ImageInfo2& imageInfo);
 
@@ -189,23 +190,23 @@ namespace VulkanFactory
 	class RenderPass
 	{
 	public:
-		static VkRenderPass Create(VkDevice device, VkFormat colorFormat, VkFormat depthFormat);
+		static VkRenderPass Create(const char* name, VkDevice device, VkFormat colorFormat, VkFormat depthFormat);
 		static void Destroy(VkDevice device, VkRenderPass renderPass);
 	};
 	class Framebuffer
 	{
 	public:
-		static VkFramebuffer Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
-			VkImageView colorView, VkImageView depthView);
+		static VkFramebuffer Create(const char* name, VkDevice device, VkRenderPass renderPass,
+			uint32_t width, uint32_t height, VkImageView colorView, VkImageView depthView);
 		static void Destroy(VkDevice device, VkFramebuffer framebuffer);
 	};
 	class Descriptor
 	{
 	public:
-		static VkDescriptorSetLayout CreateSetLayout(VkDevice device,
+		static VkDescriptorSetLayout CreateSetLayout(const char* name, VkDevice device,
 			VkDescriptorSetLayoutBinding* layoutBindings, uint32_t bindingCount);
 		static void DestroySetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout);
-		static VkDescriptorPool CreatePool(VkDevice device, VkDescriptorPoolSize* poolSizes,
+		static VkDescriptorPool CreatePool(const char* name, VkDevice device, VkDescriptorPoolSize* poolSizes,
 			uint32_t sizesCount, uint32_t maxSets /*e.g. 2 for vertex and fragment*/);
 		static void DestroyPool(VkDevice device, VkDescriptorPool descriptorPool);
 		static VkDescriptorSet AllocateSet(VkDevice device, VkDescriptorPool descriptorPool,
@@ -225,17 +226,17 @@ namespace VulkanFactory
 			VkPipelineCache pipelineCache = VK_NULL_HANDLE);
 		static void Destroy(VkDevice device, VkPipeline pipeline);
 
-		static VkPipelineLayout CreateLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout,
+		static VkPipelineLayout CreateLayout(const char* name, VkDevice device, VkDescriptorSetLayout descriptorSetLayout,
 			VkPushConstantRange* pushConstantRanges = nullptr, uint32_t rangesCount = 0);
 		static void DestroyLayout(VkDevice device, VkPipelineLayout pipelineLayout);
 
-		static VkPipelineCache CreateCache(VkDevice device);
+		static VkPipelineCache CreateCache(const char* name, VkDevice device);
 		static void DestroyCache(VkDevice device, VkPipelineCache pipelineCache);
 	};
 	class Shader
 	{
 	public:
-		static VkShaderModule Create(VkDevice device, const std::string& path);
+		static VkShaderModule Create(const char* name, VkDevice device, const std::string& path);
 		static void Destroy(VkDevice device, VkShaderModule shader);
 	};
 };

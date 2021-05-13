@@ -5,6 +5,7 @@
 #include "Core/Platform/Platform.hpp"
 #include "Initializers.hpp"
 #include "ImGui/ImGui.hpp"
+#include "Debug/Debug.hpp"
 #include <imgui.h>
 
 VkInstance VulkanFactory::Instance::Create(const std::vector<const char*>& extensions,
@@ -126,13 +127,15 @@ void VulkanFactory::Device::Destroy(DeviceInfo& deviceInfo)
 	vkDestroyDevice(deviceInfo.Handle, nullptr);
 }
 
-VkCommandPool VulkanFactory::CommandPool::Create(VkDevice device, uint32_t queueIndex, VkCommandPoolCreateFlags flags)
+VkCommandPool VulkanFactory::CommandPool::Create(const char* name, VkDevice device, uint32_t queueIndex,
+	VkCommandPoolCreateFlags flags)
 {
 	auto commandPoolInitializer = VulkanInitializers::CommandPool();
 	commandPoolInitializer.queueFamilyIndex = queueIndex;
 	commandPoolInitializer.flags = flags;
 	VkCommandPool commandPool;
 	vkCreateCommandPool(device, &commandPoolInitializer, nullptr, &commandPool);
+	Debug::Utils::SetCommandPoolName(device, commandPool, name);
 	return commandPool;
 }
 
@@ -141,12 +144,13 @@ void VulkanFactory::CommandPool::Destroy(VkDevice device, VkCommandPool commandP
 	vkDestroyCommandPool(device, commandPool, nullptr);
 }
 
-VkSemaphore VulkanFactory::Semaphore::Create(VkDevice device)
+VkSemaphore VulkanFactory::Semaphore::Create(const char* name, VkDevice device)
 {
 	auto semaphoreInitializer = VulkanInitializers::Semaphore();
 	VkSemaphore semaphore;
 	VkResult result = vkCreateSemaphore(device, &semaphoreInitializer, nullptr, &semaphore);
 	assert(result == VK_SUCCESS);
+	Debug::Utils::SetSemaphoreName(device, semaphore, name);
 	return semaphore;
 }
 
@@ -155,12 +159,13 @@ void VulkanFactory::Semaphore::Destroy(VkDevice device, VkSemaphore semaphore)
 	vkDestroySemaphore(device, semaphore, nullptr);
 }
 
-VkFence VulkanFactory::Fence::Create(VkDevice device, VkFenceCreateFlags flags)
+VkFence VulkanFactory::Fence::Create(const char* name, VkDevice device, VkFenceCreateFlags flags)
 {
 	auto fenceInitializer = VulkanInitializers::Fence();
 	fenceInitializer.flags = flags;
 	VkFence fence;
 	VkResult result = vkCreateFence(device, &fenceInitializer, nullptr, &fence);
+	Debug::Utils::SetFenceName(device, fence, name);
 	assert(result == VK_SUCCESS);
 	return fence;
 }
@@ -170,9 +175,11 @@ void VulkanFactory::Fence::Destroy(VkDevice device, VkFence fence)
 	vkDestroyFence(device, fence, nullptr);
 }
 
-VkSurfaceKHR VulkanFactory::Surface::Create(VkInstance instance, uint64_t windowHandle)
+VkSurfaceKHR VulkanFactory::Surface::Create(const char* name, VkDevice device, VkInstance instance, uint64_t windowHandle)
 {
-	return SurfaceFactory::Create(instance, windowHandle);
+	VkSurfaceKHR surface = SurfaceFactory::Create(instance, windowHandle);
+	Debug::Utils::SetSurfaceName(device, surface, name);
+	return surface;
 }
 
 void VulkanFactory::Surface::Destroy(VkInstance instance, VkSurfaceKHR surface)
@@ -180,14 +187,15 @@ void VulkanFactory::Surface::Destroy(VkInstance instance, VkSurfaceKHR surface)
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 }
 
-VkQueue VulkanFactory::Queue::Get(VkDevice device, uint32_t queueFamily, uint32_t queueIndex)
+VkQueue VulkanFactory::Queue::Get(const char* name, VkDevice device, uint32_t queueFamily, uint32_t queueIndex)
 {
 	VkQueue queue;
 	vkGetDeviceQueue(device, queueFamily, queueIndex, &queue);
+	Debug::Utils::SetQueueName(device, queue, name);
 	return queue;
 }
 
-void VulkanFactory::Swapchain::Create(const Device::DeviceInfo& deviceInfo,
+void VulkanFactory::Swapchain::Create(const char* name, const Device::DeviceInfo& deviceInfo,
 	uint32_t width, uint32_t height, VkSurfaceKHR surface,
 	SwapchainInfo& output, SwapchainInfo* oldSwapchainInfo)
 {
@@ -221,6 +229,7 @@ void VulkanFactory::Swapchain::Create(const Device::DeviceInfo& deviceInfo,
 	}
 
 	VkResult result = vkCreateSwapchainKHR(deviceInfo.Handle, &swapchainInitializer, nullptr, &output.Handle);
+	Debug::Utils::SetSwapchainName(deviceInfo.Handle, output.Handle, name);
 
 	if (result != VK_SUCCESS)
 	{
@@ -254,7 +263,7 @@ void VulkanFactory::Swapchain::Destroy(const Device::DeviceInfo& deviceInfo, Swa
 	vkDestroySwapchainKHR(deviceInfo.Handle, swapchainInfo.Handle, nullptr);
 }
 
-void VulkanFactory::Buffer::Create(const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
+void VulkanFactory::Buffer::Create(const char* name, const Device::DeviceInfo& deviceInfo, VkBufferUsageFlags usage,
 	VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, BufferInfo& output)
 {
 	output.DescriptorBufferInfo.offset = 0;
@@ -265,6 +274,7 @@ void VulkanFactory::Buffer::Create(const Device::DeviceInfo& deviceInfo, VkBuffe
 
 	VkResult result = vkCreateBuffer(deviceInfo.Handle, &bufferInitializer, nullptr, &output.DescriptorBufferInfo.buffer);
 	assert(result == VK_SUCCESS);
+	Debug::Utils::SetBufferName(deviceInfo.Handle, output.DescriptorBufferInfo.buffer, name);
 
 	output.Memory = VulkanUtils::Memory::AllocateBuffer(deviceInfo.Handle, deviceInfo.MemoryProperties,
 		output.DescriptorBufferInfo.buffer, memoryProperties);
@@ -281,17 +291,15 @@ void VulkanFactory::Buffer::Destroy(const Device::DeviceInfo& deviceInfo, Buffer
 }
 
 void VulkanFactory::CommandBuffer::AllocatePrimary(VkDevice device, VkCommandPool commandPool,
-	std::vector<VkCommandBuffer>& output, uint32_t bufferCount)
+	VkCommandBuffer* output, uint32_t bufferCount)
 {
-	output.resize(bufferCount);
-
 	auto commandBufferInitializer = VulkanInitializers::CommandBufferAllocation(
 		commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, bufferCount);
 
-	vkAllocateCommandBuffers(device, &commandBufferInitializer, output.data());
+	vkAllocateCommandBuffers(device, &commandBufferInitializer, output);
 }
 
-VkCommandBuffer VulkanFactory::CommandBuffer::AllocatePrimary(VkDevice device, VkCommandPool commandPool)
+VkCommandBuffer VulkanFactory::CommandBuffer::AllocatePrimary(const char* name, VkDevice device, VkCommandPool commandPool)
 {
 	auto commandBufferInitializer = VulkanInitializers::CommandBufferAllocation(
 		commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
@@ -368,7 +376,7 @@ void VulkanFactory::CommandBuffer::BuildDraw(VkCommandBuffer commandBuffer, cons
 	VulkanUtils::CommandBuffer::End(commandBuffer);
 }
 
-void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo,
+void VulkanFactory::Image::Create(const char* name, const Device::DeviceInfo& deviceInfo,
 	uint32_t width, uint32_t height, VkFormat format, ImageInfo& output)
 {
 	auto imageInitializer = VulkanInitializers::Image(format);
@@ -381,6 +389,7 @@ void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo,
 
 	VkResult result = vkCreateImage(deviceInfo.Handle, &imageInitializer, nullptr, &output.Image);
 	assert(result == VK_SUCCESS);
+	Debug::Utils::SetImageName(deviceInfo.Handle, output.Image, name);
 
 	output.Memory = VulkanUtils::Memory::AllocateImage(deviceInfo.Handle, deviceInfo.MemoryProperties,
 		output.Image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -399,7 +408,7 @@ void VulkanFactory::Image::Destroy(VkDevice device, ImageInfo& imageInfo)
 	vkDestroyImage(device, imageInfo.Image, nullptr);
 }
 
-void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
+void VulkanFactory::Image::Create(const char* name, const Device::DeviceInfo& deviceInfo, uint32_t width, uint32_t height,
 	VkFormat format, VkImageUsageFlags usage, ImageInfo2& output)
 {
 	VkFormatProperties formatProperties = VulkanUtils::Device::GetPhysicalDeviceFormatProperties(
@@ -424,6 +433,7 @@ void VulkanFactory::Image::Create(const Device::DeviceInfo& deviceInfo, uint32_t
 
 	VkResult result = vkCreateImage(deviceInfo.Handle, &imageCreateInfo, nullptr, &output.Image);
 	assert(result == VK_SUCCESS);
+	Debug::Utils::SetImageName(deviceInfo.Handle, output.Image, name);
 
 	output.Memory = VulkanUtils::Memory::AllocateImage(deviceInfo.Handle, deviceInfo.MemoryProperties,
 		output.Image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -459,7 +469,7 @@ void VulkanFactory::Image::Destroy(VkDevice device, ImageInfo2& imageInfo)
 	vkDestroyImage(device, imageInfo.Image, nullptr);
 }
 
-VkRenderPass VulkanFactory::RenderPass::Create(VkDevice device, VkFormat colorFormat, VkFormat depthFormat)
+VkRenderPass VulkanFactory::RenderPass::Create(const char* name, VkDevice device, VkFormat colorFormat, VkFormat depthFormat)
 {
 	const int attachmentCount = 2;
 	VkAttachmentDescription attachments[attachmentCount];
@@ -529,10 +539,12 @@ VkRenderPass VulkanFactory::RenderPass::Create(VkDevice device, VkFormat colorFo
 	renderPassInfo.dependencyCount = dependencyCount;
 	renderPassInfo.pDependencies = dependencies;
 
-	VkRenderPass output;
-	VkResult result = vkCreateRenderPass(device, &renderPassInfo, nullptr, &output);
+	VkRenderPass renderPass;
+	VkResult result = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetRenderPassName(device, renderPass, name);
 
-	return output;
+	return renderPass;
 }
 
 void VulkanFactory::RenderPass::Destroy(VkDevice device, VkRenderPass renderPass)
@@ -540,8 +552,8 @@ void VulkanFactory::RenderPass::Destroy(VkDevice device, VkRenderPass renderPass
 	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
-VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass renderPass, uint32_t width, uint32_t height,
-	VkImageView colorView, VkImageView depthView)
+VkFramebuffer VulkanFactory::Framebuffer::Create(const char* name, VkDevice device, VkRenderPass renderPass,
+	uint32_t width, uint32_t height, VkImageView colorView, VkImageView depthView)
 {
 	const int attachmentCount = 2;
 	VkImageView attachments[attachmentCount];
@@ -559,6 +571,7 @@ VkFramebuffer VulkanFactory::Framebuffer::Create(VkDevice device, VkRenderPass r
 	VkFramebuffer framebuffer;
 	VkResult result = vkCreateFramebuffer(device, &framebufferInitializer, nullptr, &framebuffer);
 	assert(result == VK_SUCCESS);
+	Debug::Utils::SetFramebufferName(device, framebuffer, name);
 
 	return framebuffer;
 }
@@ -568,7 +581,7 @@ void VulkanFactory::Framebuffer::Destroy(VkDevice device, VkFramebuffer framebuf
 	vkDestroyFramebuffer(device, framebuffer, nullptr);
 }
 
-VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(VkDevice device,
+VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(const char* name, VkDevice device,
 	VkDescriptorSetLayoutBinding* layoutBindings, uint32_t bindingCount)
 {
 	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = VulkanInitializers::DescriptorSetLayout(
@@ -577,6 +590,8 @@ VkDescriptorSetLayout VulkanFactory::Descriptor::CreateSetLayout(VkDevice device
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkResult result = vkCreateDescriptorSetLayout(device, &descriptorLayoutCreateInfo, nullptr, &descriptorSetLayout);
 	assert(result == VK_SUCCESS);
+	Debug::Utils::SetDescriptorSetLayoutName(device, descriptorSetLayout, name);
+
 	return descriptorSetLayout;
 }
 
@@ -585,14 +600,16 @@ void VulkanFactory::Descriptor::DestroySetLayout(VkDevice device, VkDescriptorSe
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 }
 
-VkDescriptorPool VulkanFactory::Descriptor::CreatePool(VkDevice device, VkDescriptorPoolSize* poolSizes,
+VkDescriptorPool VulkanFactory::Descriptor::CreatePool(const char* name, VkDevice device, VkDescriptorPoolSize* poolSizes,
 	uint32_t sizesCount, uint32_t maxSets)
 {
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = VulkanInitializers::DescriptorPool(poolSizes,
 		sizesCount, maxSets);
 
 	VkDescriptorPool descriptorPool;
-	vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
+	VkResult result = vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetDescriptorPoolName(device, descriptorPool, name);
 
 	return descriptorPool;
 }
@@ -611,6 +628,7 @@ VkDescriptorSet VulkanFactory::Descriptor::AllocateSet(VkDevice device, VkDescri
 	VkDescriptorSet descriptorSet;
 	VkResult result = vkAllocateDescriptorSets(device, &descriptorSetAllocationInitializer, &descriptorSet);
 	assert(result == VK_SUCCESS);
+
 	return descriptorSet;
 }
 
@@ -677,7 +695,10 @@ VkPipeline VulkanFactory::Pipeline::CreateGraphics(VkDevice device, VkRenderPass
 	pipelineInitializer.renderPass = renderPass;
 	
 	VkPipeline pipeline;
-	vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	VkResult result = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetPipelineName(device, pipeline, "Display Pipeline");
+
 	return pipeline;
 }
 
@@ -754,7 +775,10 @@ VkPipeline VulkanFactory::Pipeline::CreateGuiGraphics(VkDevice device, VkRenderP
 	pipelineInitializer.renderPass = renderPass;
 
 	VkPipeline pipeline;
-	vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	VkResult result = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetPipelineName(device, pipeline, "GUI Pipeline");
+
 	return pipeline;
 }
 
@@ -768,7 +792,10 @@ VkPipeline VulkanFactory::Pipeline::CreateCompute(VkDevice device, VkPipelineLay
 	pipelineInitializer.stage = shaderInitializer;
 
 	VkPipeline pipeline;
-	vkCreateComputePipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	VkResult result = vkCreateComputePipelines(device, pipelineCache, 1, &pipelineInitializer, nullptr, &pipeline);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetPipelineName(device, pipeline, "Trace Pipeline");
+
 	return pipeline;
 }
 
@@ -777,14 +804,17 @@ void VulkanFactory::Pipeline::Destroy(VkDevice device, VkPipeline pipeline)
 	vkDestroyPipeline(device, pipeline, nullptr);
 }
 
-VkPipelineLayout VulkanFactory::Pipeline::CreateLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout,
+VkPipelineLayout VulkanFactory::Pipeline::CreateLayout(const char* name, VkDevice device, VkDescriptorSetLayout descriptorSetLayout,
 	VkPushConstantRange* pushConstantRanges, uint32_t rangesCount)
 {
 	auto pipelineLayoutInitializer = VulkanInitializers::PipelineLayout(&descriptorSetLayout, 1,
 		pushConstantRanges, rangesCount);
 
 	VkPipelineLayout pipelineLayout;
-	vkCreatePipelineLayout(device, &pipelineLayoutInitializer, nullptr, &pipelineLayout);
+	VkResult result = vkCreatePipelineLayout(device, &pipelineLayoutInitializer, nullptr, &pipelineLayout);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetPipelineLayoutName(device, pipelineLayout, name);
+
 	return pipelineLayout;
 }
 
@@ -793,11 +823,14 @@ void VulkanFactory::Pipeline::DestroyLayout(VkDevice device, VkPipelineLayout pi
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 }
 
-VkPipelineCache VulkanFactory::Pipeline::CreateCache(VkDevice device)
+VkPipelineCache VulkanFactory::Pipeline::CreateCache(const char* name, VkDevice device)
 {
 	auto pipelineCacheInitializer = VulkanInitializers::PipelineCache();
 	VkPipelineCache pipelineCache;
-	vkCreatePipelineCache(device, &pipelineCacheInitializer, nullptr, &pipelineCache);
+	VkResult result = vkCreatePipelineCache(device, &pipelineCacheInitializer, nullptr, &pipelineCache);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetPipelineCacheName(device, pipelineCache, name);
+
 	return pipelineCache;
 }
 
@@ -806,7 +839,7 @@ void VulkanFactory::Pipeline::DestroyCache(VkDevice device, VkPipelineCache pipe
 	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 }
 
-VkShaderModule VulkanFactory::Shader::Create(VkDevice device, const std::string& path)
+VkShaderModule VulkanFactory::Shader::Create(const char* name, VkDevice device, const std::string& path)
 {
 	std::vector<uint8_t> byteCode;
 
@@ -833,7 +866,9 @@ VkShaderModule VulkanFactory::Shader::Create(VkDevice device, const std::string&
 	shaderInitializer.pCode = (uint32_t* const)byteCode.data();
 
 	VkShaderModule shaderModule;
-	vkCreateShaderModule(device, &shaderInitializer, nullptr, &shaderModule);
+	VkResult result = vkCreateShaderModule(device, &shaderInitializer, nullptr, &shaderModule);
+	assert(result == VK_SUCCESS);
+	Debug::Utils::SetShaderModuleName(device, shaderModule, name);
 
 	return shaderModule;
 }
