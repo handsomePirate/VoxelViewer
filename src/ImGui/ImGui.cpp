@@ -144,10 +144,25 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		ImGui::Text("Device: %s", deviceInfo.Properties.deviceName);
 		ImGui::Text("%.2f ms per frame", (1000.0f / fps), fps);
 		ImGui::Text("(%.1f fps)", fps);
+		ImGui::TextUnformatted("Log: ");
+		ImGui::SameLine();
+		bool guiLogger = (int)CoreLogger.GetTypes() & (int)Core::LoggerType::ImGui;
+		ImGui::Checkbox("GUI", &guiLogger);
+		ImGui::SameLine();
+		bool consoleLogger = (int)CoreLogger.GetTypes() & (int)Core::LoggerType::Console;
+		ImGui::Checkbox("Console", &consoleLogger);
+
+		Core::LoggerType resultingTypes = (Core::LoggerType)
+			((guiLogger ? (int)Core::LoggerType::ImGui : 0) |
+			(consoleLogger ? (int)Core::LoggerType::Console : 0));
+		CoreLogger.SetTypes(resultingTypes);
+
 		ImGui::End();
 	}
 
-	ImGui::ShowDemoWindow();
+	CoreLogger.DrawImGuiLogger("Log");
+
+	//ImGui::ShowDemoWindow();
 
 	ImGui::Render();
 

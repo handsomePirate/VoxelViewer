@@ -3,6 +3,26 @@
 
 #define FORBID_TRACE
 
+void Core::Logger::SetTypes(LoggerType type)
+{
+	type_ = type;
+}
+
+void Core::Logger::AddTypes(LoggerType type)
+{
+	type_ = (LoggerType)((int)type_ | ((int)type));
+}
+
+void Core::Logger::RemoveTypes(LoggerType type)
+{
+	type_ = (LoggerType)((int)type_ & (~(int)type));
+}
+
+Core::LoggerType Core::Logger::GetTypes() const
+{
+	return type_;
+}
+
 void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 {
 	va_list args;
@@ -22,5 +42,42 @@ void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 
 	va_end(args);
 
-	CorePlatform.OutputMessage(buffer, (uint8_t)severity);
+	if ((int)type_ & (int)LoggerType::ImGui)
+	{
+		switch (severity)
+		{
+		case Core::LoggerSeverity::Fatal:
+			imGuiLogger_.Log("[Fatal] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Error:
+			imGuiLogger_.Log("[Error] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Warn:
+			imGuiLogger_.Log("[Warn] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Info:
+			imGuiLogger_.Log("[Info] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Debug:
+			imGuiLogger_.Log("[Debug] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Trace:
+			imGuiLogger_.Log("[Trace] %s", buffer);
+			break;
+		default:
+			break;
+		}
+	}
+	if ((int)type_ & (int)LoggerType::Console)
+	{
+		CorePlatform.OutputMessage(buffer, (uint8_t)severity);
+	}
+}
+
+void Core::Logger::DrawImGuiLogger(const char* title, bool* p_open)
+{
+	if ((int)type_ & (int)LoggerType::ImGui)
+	{
+		imGuiLogger_.Draw(title, p_open);
+	}
 }

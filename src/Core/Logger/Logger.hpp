@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Common.hpp"
 #include "Core/Singleton.hpp"
+#include "ImGuiLogger.hpp"
 
 namespace Core
 {
@@ -16,14 +17,31 @@ namespace Core
 
 	const int MaxMessageLength = 1024;
 
+	enum class LoggerType
+	{
+		Console = 1,
+		ImGui = 2,
+		Both = 3
+	};
+
 	class Logger
 	{
 	public:
 		Logger() = default;
 		~Logger() = default;
 
+		void SetTypes(LoggerType type);
+		void AddTypes(LoggerType type);
+		void RemoveTypes(LoggerType type);
+		LoggerType GetTypes() const;
+
 		void Log(LoggerSeverity severity, const char* message, ...);
+
+		void DrawImGuiLogger(const char* title, bool* p_open = NULL);
+
 	private:
+		LoggerType type_ = LoggerType::Both;
+		ImGuiLogger imGuiLogger_;
 	};
 }
 

@@ -63,6 +63,7 @@ int main(int argc, char* argv[])
 
 #pragma region Singleton initialization
 	volatile auto input = CoreInput;
+	CoreLogger.SetTypes(Core::LoggerType::ImGui);
 #pragma endregion
 
 	//=========================== Testing event logging ==============================
