@@ -40,11 +40,11 @@ namespace Core
         EventSystem() = default;
         ~EventSystem() = default;
 
-        void SubscribeToEvent(EventCode code, OnEventFunc fnc, void* listener);
-        void UnsubscribeFromEvent(EventCode code, void* listener);
+        void SubscribeToEvent(EventCode code, OnEventFunc fnc, void* const listener);
+        void UnsubscribeFromEvent(EventCode code, void* const listener);
         bool SignalEvent(EventCode code, EventData context);
     private:
-        std::map<EventCode, std::map<void*, OnEventFunc>> registeredEvents_;
+        std::map<EventCode, std::map<void* const, OnEventFunc>> registeredEvents_;
     };
 
     enum class EventCode
@@ -54,27 +54,25 @@ namespace Core
         
         // Keyboard key pressed.
         /* Context usage:
-        * u16 key_code = context.data.u16[0];
+        * u16 keyCode = context.data.u16[0];
         */
         KeyPressed = 0x02,
 
         // Keyboard key released.
         /* Context usage:
-        * u16 key_code = context.data.u16[0];
+        * u16 keyCode = context.data.u16[0];
         */
         KeyReleased = 0x03,
 
         // Mouse button pressed.
         /* Context usage:
-        * u16 button = context.data.u16[0];
+        * u16 buttonCode = context.data.u16[0];
         */
         MouseButtonPressed = 0x04,
 
         // Mouse button released.
         /* Context usage:
-        * u16 x = context.data.u16[0];
-        * u16 y = context.data.u16[1];
-        * u16 button = context.data.u8[5];
+        * u16 buttonCode = context.data.u8[5];
         */
         MouseButtonReleased = 0x05,
 
@@ -87,9 +85,8 @@ namespace Core
 
         // Mouse moved.
         /* Context usage:
-        * u16 x = context.data.u16[0];
-        * u16 y = context.data.u16[1];
-        * u8 z_delta = context.data.u8[5];
+        * i8 delta = context.data.i8[0];
+        * i8 horizontal = context.data.u8[1];
         */
         MouseWheel = 0x07,
 
@@ -112,6 +109,12 @@ namespace Core
         * u32 severityFlags = context.data.u32[2]
         */
         VulkanValidation = 0x0A,
+
+        // A character being input.
+        /* Context usage:
+        * u16 UTF16Character = context.data.u16[0]
+        */
+        CharacterInput = 0x0B,
 
         MaxCode = 0xFF
     };

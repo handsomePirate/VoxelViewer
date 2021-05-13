@@ -1,27 +1,152 @@
 #include "ImGui.hpp"
 #include "Vulkan/Utils.hpp"
 #include "Core/Logger/Logger.hpp"
+#include "Core/Input/Input.hpp"
+#include "Core/Platform/Platform.hpp"
 
 bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& vertexBuffer, VulkanFactory::Buffer::BufferInfo& indexBuffer);
+
+static int GuiRendererListener = 0;
+
+bool CharacterInput(Core::EventCode code, Core::EventData context)
+{
+	ImGuiIO& io = ImGui::GetIO();
+
+	if (io.WantTextInput)
+	{
+		io.AddInputCharacterUTF16(context.data.u16[0]);
+	}
+
+	return false;
+}
+
+bool MouseWheel(Core::EventCode code, Core::EventData context)
+{
+	ImGuiIO& io = ImGui::GetIO();
+
+	const float sensitivity = 0.5f;
+	if (context.data.u8[1])
+	{
+		io.MouseWheelH += context.data.i8[0] * sensitivity;
+	}
+	else
+	{
+		io.MouseWheel += context.data.i8[0] * sensitivity;
+	}
+
+	return false;
+}
+
+static char inputText[256];
+
+void GUI::Renderer::Init(uint64_t windowHandle)
+{
+	ImGui::CreateContext();
+
+	ImGui::StyleColorsDark();
+
+	ImGuiIO& io = ImGui::GetIO();
+
+	io.KeyMap[ImGuiKey_Tab] = (int)Core::Input::Keys::Tab;
+	io.KeyMap[ImGuiKey_LeftArrow] = (int)Core::Input::Keys::Left;
+	io.KeyMap[ImGuiKey_RightArrow] = (int)Core::Input::Keys::Right;
+	io.KeyMap[ImGuiKey_UpArrow] = (int)Core::Input::Keys::Up;
+	io.KeyMap[ImGuiKey_DownArrow] = (int)Core::Input::Keys::Down;
+	io.KeyMap[ImGuiKey_PageUp] = (int)Core::Input::Keys::Prior;
+	io.KeyMap[ImGuiKey_PageDown] = (int)Core::Input::Keys::Next;
+	io.KeyMap[ImGuiKey_Home] = (int)Core::Input::Keys::Home;
+	io.KeyMap[ImGuiKey_End] = (int)Core::Input::Keys::End;
+	io.KeyMap[ImGuiKey_Insert] = (int)Core::Input::Keys::Insert;
+	io.KeyMap[ImGuiKey_Delete] = (int)Core::Input::Keys::Delete;
+	io.KeyMap[ImGuiKey_Backspace] = (int)Core::Input::Keys::Backspace;
+	io.KeyMap[ImGuiKey_Space] = (int)Core::Input::Keys::Space;
+	io.KeyMap[ImGuiKey_Enter] = (int)Core::Input::Keys::Enter;
+	io.KeyMap[ImGuiKey_Escape] = (int)Core::Input::Keys::Escape;
+	io.KeyMap[ImGuiKey_KeyPadEnter] = (int)Core::Input::Keys::Enter;
+	io.KeyMap[ImGuiKey_A] = (int)Core::Input::Keys::A;
+	io.KeyMap[ImGuiKey_C] = (int)Core::Input::Keys::C;
+	io.KeyMap[ImGuiKey_V] = (int)Core::Input::Keys::V;
+	io.KeyMap[ImGuiKey_X] = (int)Core::Input::Keys::X;
+	io.KeyMap[ImGuiKey_Y] = (int)Core::Input::Keys::Y;
+	io.KeyMap[ImGuiKey_Z] = (int)Core::Input::Keys::Z;
+	io.ImeWindowHandle = (void*)windowHandle;
+
+	memset(inputText, 0, 256 * sizeof(char));
+
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::CharacterInput, &CharacterInput, &GuiRendererListener);
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseWheel, &MouseWheel, &GuiRendererListener);
+}
+
+void GUI::Renderer::Shutdown()
+{
+	CoreEventSystem.UnsubscribeFromEvent(Core::EventCode::CharacterInput, &GuiRendererListener);
+	CoreEventSystem.UnsubscribeFromEvent(Core::EventCode::MouseWheel, &GuiRendererListener);
+}
+
+#define UpdateImguiKey(key) io.KeysDown[(int)Core::Input::Keys::key] = CoreInput.IsKeyPressed(Core::Input::Keys::key)
 
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	float width, float height, float renderTimeDelta, float fps)
 {
+	float deltaTimeSeconds = renderTimeDelta * .001f;
 	ImGuiIO& io = ImGui::GetIO();
 	io.DisplaySize = ImVec2(width, height);
-	io.DeltaTime = renderTimeDelta;
+	io.DeltaTime = deltaTimeSeconds;
 
-	// TODO: Mouse position and buttons.
+	io.MousePos = ImVec2(CoreInput.GetMouseX(), CoreInput.GetMouseY());
+	io.MouseDown[0] = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
+	io.MouseDown[1] = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Right);
+	io.MouseDown[2] = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Middle);
+	UpdateImguiKey(Tab);
+	UpdateImguiKey(Left);
+	UpdateImguiKey(Right);
+	UpdateImguiKey(Up);
+	UpdateImguiKey(Down);
+	UpdateImguiKey(Prior);
+	UpdateImguiKey(Next);
+	UpdateImguiKey(Home);
+	UpdateImguiKey(End);
+	UpdateImguiKey(Insert);
+	UpdateImguiKey(Delete);
+	UpdateImguiKey(Backspace);
+	UpdateImguiKey(Space);
+	UpdateImguiKey(Enter);
+	UpdateImguiKey(Escape);
+	UpdateImguiKey(A);
+	UpdateImguiKey(C);
+	UpdateImguiKey(V);
+	UpdateImguiKey(X);
+	UpdateImguiKey(Y);
+	UpdateImguiKey(Z);
+	io.KeysDown[ImGuiKey_KeyPadEnter] = CoreInput.IsKeyPressed(Core::Input::Keys::Enter);
+	io.KeyShift = CoreInput.IsKeyPressed(Core::Input::Keys::Shift);
+	io.KeyCtrl = CoreInput.IsKeyPressed(Core::Input::Keys::Control);
+	io.KeyAlt = CoreInput.IsKeyPressed(Core::Input::Keys::Alt);
+
+	static Core::CursorType lastCursor = Core::CursorType::CursorTypeCount;
+	Core::CursorType currentCursor = (Core::CursorType)ImGui::GetMouseCursor();
+	if (lastCursor != currentCursor)
+	{
+		CorePlatform.SetCursor(currentCursor);
+		lastCursor = currentCursor;
+	}
 
 	ImGui::NewFrame();
 
-	ImGui::Begin("Info", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-	ImGui::Text("Device: %s", deviceInfo.Properties.deviceName);
-	ImGui::Text("%.2f ms per frame", (1000.0f / fps), fps);
-	ImGui::Text("(%.1f fps)", fps);
-	ImGui::End();
+	if (!ImGui::Begin("Info", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::End();
+	}
+	else
+	{
+		ImGui::Text("Device: %s", deviceInfo.Properties.deviceName);
+		ImGui::Text("%.2f ms per frame", (1000.0f / fps), fps);
+		ImGui::Text("(%.1f fps)", fps);
+		ImGui::InputText("text input", inputText, 256);
+		ImGui::End();
+	}
 
 	ImGui::ShowDemoWindow();
 

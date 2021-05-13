@@ -7,6 +7,7 @@
 #include "Vulkan/Initializers.hpp"
 #include "Debug/Debug.hpp"
 #include "Vulkan/Render.hpp"
+#include "Core/Input/Input.hpp"
 #include "ImGui/ImGui.hpp"
 #include <imgui.h>
 #include <vector>
@@ -19,54 +20,6 @@
 #pragma region Event logger
 struct EventLogger
 {
-	bool KeyPressed(Core::EventCode code, Core::EventData context)
-	{
-		std::string keyName;
-
-		switch (context.data.u16[0])
-		{
-		case (uint16_t)Core::Key::Ascii:
-			keyName = (unsigned char)context.data.u16[1];
-			break;
-		case (uint16_t)Core::Key::Space:
-			keyName = "Space";
-			break;
-		case (uint16_t)Core::Key::Enter:
-			keyName = "Enter";
-			break;
-		case (uint16_t)Core::Key::Escape:
-			keyName = "Esc";
-			CorePlatform.Quit();
-			break;
-		case (uint16_t)Core::Key::Arrow:
-			static std::string arrowDirections[] = { "left", "right", "up", "down" };
-			keyName = "Arrow " + arrowDirections[context.data.u16[1]];
-			break;
-		}
-
-		CoreLogTrace("Button pressed; data = %s", keyName.c_str());
-		return true;
-	}
-
-	bool MousePressed(Core::EventCode code, Core::EventData context)
-	{
-		std::string whichButtonString;
-
-		switch (context.data.u8[5])
-		{
-		case 0:
-			whichButtonString = "left";
-			break;
-		case 1:
-			whichButtonString = "right";
-			break;
-		}
-
-		CoreLogTrace("Mouse pressed at (%hu, %hu) with %s button",
-			context.data.u16[0], context.data.u16[1], whichButtonString.c_str());
-		return true;
-	}
-
 	bool WindowResized(Core::EventCode code, Core::EventData context)
 	{
 		CoreLogTrace("Window resized to (%hu, %hu)",
@@ -107,15 +60,15 @@ int main(int argc, char* argv[])
 	const bool useSwapchain = true;
 #pragma endregion
 
+#pragma region Singleton initialization
+	volatile auto input = CoreInput;
+#pragma endregion
+
 	//=========================== Testing event logging ==============================
 
 #pragma region Event handling subscriptions
 	EventLogger eventLogger;
 
-	auto keyPressFnc = std::bind(&EventLogger::KeyPressed, &eventLogger, std::placeholders::_1, std::placeholders::_2);
-	CoreEventSystem.SubscribeToEvent(Core::EventCode::KeyPressed, keyPressFnc, &eventLogger);
-	auto mousePressFnc = std::bind(&EventLogger::MousePressed, &eventLogger, std::placeholders::_1, std::placeholders::_2);
-	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseButtonPressed, mousePressFnc, &eventLogger);
 	auto resizeFnc = std::bind(&EventLogger::WindowResized, &eventLogger, std::placeholders::_1, std::placeholders::_2);
 	CoreEventSystem.SubscribeToEvent(Core::EventCode::WindowResized, resizeFnc, &eventLogger);
 	auto vulkanValidationFnc = std::bind(&EventLogger::VulkanValidation, &eventLogger, std::placeholders::_1, std::placeholders::_2);
@@ -146,10 +99,11 @@ int main(int argc, char* argv[])
 		vulkanExtensions, VK_MAKE_VERSION(1, 2, 0), validationLayer);
 #pragma endregion
 
-#pragma region Validation layers
+#pragma region Validation layers and Debug utils
 	if (enableVulkanDebug)
 	{
 		Debug::ValidationLayers::Start(instance);
+		Debug::Utils::Start(instance);
 	}
 #pragma endregion
 
@@ -357,8 +311,7 @@ int main(int argc, char* argv[])
 
 #pragma region GUI
 	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGui::StyleColorsDark();
+	GUI::Renderer::Init(window->GetHandle());
 	int guiTargetWidth, guiTargetHeight;
 	unsigned char* fontData;
 	ImGuiIO& io = ImGui::GetIO();
@@ -524,16 +477,18 @@ int main(int argc, char* argv[])
 
 			++frameCounterPerSecond;
 
+			if (CoreInput.IsKeyPressed(Core::Input::Keys::Escape))
+			{
+				CorePlatform.Quit();
+			}
+
 			bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
 				(float)windowWidth, (float)windowHeight, renderDelta, fps);
-			if (updated)
+			
+			for (int i = 0; i < (int)drawCommandBuffers.size(); ++i)
 			{
-				CoreLogTrace("Updating command buffers. Fps == %f", fps);
-				for (int i = 0; i < (int)drawCommandBuffers.size(); ++i)
-				{
-					commandBufferBuildData.Framebuffer = framebuffers[i];
-					VulkanFactory::CommandBuffer::BuildDraw(drawCommandBuffers[i], commandBufferBuildData, guiCommandBufferBuildData);
-				}
+				commandBufferBuildData.Framebuffer = framebuffers[i];
+				VulkanFactory::CommandBuffer::BuildDraw(drawCommandBuffers[i], commandBufferBuildData, guiCommandBufferBuildData);
 			}
 		}
 	}
@@ -557,6 +512,8 @@ int main(int argc, char* argv[])
 	VulkanFactory::Descriptor::DestroyPool(deviceInfo.Handle, guiDescriptorPool);
 	
 	VulkanFactory::Image::Destroy(deviceInfo.Handle, guiFontAttachment);
+
+	GUI::Renderer::Shutdown();
 #pragma endregion
 
 #pragma region Vulkan deactivation

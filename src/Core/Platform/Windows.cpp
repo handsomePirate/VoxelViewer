@@ -1,5 +1,6 @@
 #include "Platform.hpp"
 #include "Core/Events/EventSystem.hpp"
+#include "Core/Input/Input.hpp"
 
 #ifdef PLATFORM_WINDOWS
 #include <Windows.h>
@@ -15,7 +16,7 @@ struct Core::Platform::Private
 
 inline HINSTANCE GetHInstance()
 {
-    return GetModuleHandleA(0);
+    return ::GetModuleHandleA(0);
 }
 
 static const char* windowClassName = "my window class";
@@ -28,18 +29,18 @@ Core::Platform::Platform()
     HICON icon = LoadIcon(hInstance, IDI_APPLICATION);
     WNDCLASSA wc;
     memset(&wc, 0, sizeof(wc));
-    wc.style = CS_DBLCLKS;  // Get double-clicks
+    wc.style = CS_DBLCLKS;
     wc.lpfnWndProc = ProcessMessage;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
     wc.hInstance = hInstance;
     wc.hIcon = icon;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);  // NULL; // Manage the cursor manually
-    wc.hbrBackground = NULL;                   // Transparent
+    wc.hCursor = NULL;
+    wc.hbrBackground = NULL;
     wc.lpszClassName = windowClassName;
 
-    if (!RegisterClassA(&wc)) {
-        MessageBoxA(0, "Window registration failed", "Error", MB_ICONEXCLAMATION | MB_OK);
+    if (!::RegisterClassA(&wc)) {
+        ::MessageBoxA(0, "Window registration failed", "Error", MB_ICONEXCLAMATION | MB_OK);
         return;
     }
 
@@ -48,18 +49,18 @@ Core::Platform::Platform()
         p_->windows[w] = nullptr;
     }
 
-    HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleTextAttribute(consoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+    HANDLE consoleHandle = ::GetStdHandle(STD_OUTPUT_HANDLE);
+    ::SetConsoleTextAttribute(consoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
     p_->initialized = true;
 }
 
 Core::Platform::~Platform()
 {
-    UnregisterClassA(windowClassName, GetHInstance());
+    ::UnregisterClassA(windowClassName, GetHInstance());
     delete p_;
-    HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleTextAttribute(consoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+    HANDLE consoleHandle = ::GetStdHandle(STD_OUTPUT_HANDLE);
+    ::SetConsoleTextAttribute(consoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 }
 
 struct Core::Window::Window::Private
@@ -93,10 +94,10 @@ uint64_t Core::Window::GetHandle() const
 void Core::Window::PollMessages()
 {
     MSG message;
-    while (PeekMessageA(&message, p_->handle, 0, 0, PM_REMOVE))
+    while (::PeekMessageA(&message, p_->handle, 0, 0, PM_REMOVE))
     {
-        TranslateMessage(&message);
-        DispatchMessageA(&message);
+        ::TranslateMessage(&message);
+        ::DispatchMessageA(&message);
         if (message.message == WM_QUIT)
         {
             p_->shouldClose = true;
@@ -135,7 +136,7 @@ Core::Window::~Window()
 
 void Core::Platform::OutputMessage(const char* message, uint8_t color)
 {
-    HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE consoleHandle = ::GetStdHandle(STD_OUTPUT_HANDLE);
     static uint8_t levels[6] = 
     { 
         BACKGROUND_RED | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY, // == Fatal
@@ -145,16 +146,16 @@ void Core::Platform::OutputMessage(const char* message, uint8_t color)
         FOREGROUND_GREEN, // == Debug
         FOREGROUND_INTENSITY  // == Trace
     };
-    SetConsoleTextAttribute(consoleHandle, levels[color]);
-    OutputDebugStringA(message);
+    ::SetConsoleTextAttribute(consoleHandle, levels[color]);
+    ::OutputDebugStringA(message);
     uint64_t length = strlen(message);
     LPDWORD numberWritten = 0;
-    WriteConsoleA(consoleHandle, message, (DWORD)length, numberWritten, 0);
+    ::WriteConsoleA(consoleHandle, message, (DWORD)length, numberWritten, 0);
 }
 
 void Core::Platform::Sleep(uint32_t ms)
 {
-    SleepEx(ms, FALSE);
+    ::SleepEx(ms, FALSE);
 }
 
 Core::Window* Core::Platform::GetNewWindow(const char* name,
@@ -168,14 +169,14 @@ Core::Window* Core::Platform::GetNewWindow(const char* name,
     windowStyle |= WS_THICKFRAME;
 
     RECT borderRectangle = { 0, 0, 0, 0 };
-    AdjustWindowRectEx(&borderRectangle, windowStyle, 0, windowExStyle);
+    ::AdjustWindowRectEx(&borderRectangle, windowStyle, 0, windowExStyle);
 
     uint32_t windowX = x + borderRectangle.left;
     uint32_t windowY = y + borderRectangle.top;
     uint32_t windowWidth = width + borderRectangle.right - borderRectangle.left;
     uint32_t windowHeight = height + borderRectangle.bottom - borderRectangle.top;
 
-    HWND handle = CreateWindowExA(
+    HWND handle = ::CreateWindowExA(
         windowExStyle, windowClassName, name, windowStyle,
         windowX, windowY, windowWidth, windowHeight,
         0, 0, GetHInstance(), 0);
@@ -184,7 +185,7 @@ Core::Window* Core::Platform::GetNewWindow(const char* name,
 
     if (handle == 0)
     {
-        MessageBoxA(NULL, "Window creation failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
+        ::MessageBoxA(NULL, "Window creation failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return nullptr;
     }
     else
@@ -204,18 +205,18 @@ Core::Window* Core::Platform::GetNewWindow(const char* name,
 
     if (window == nullptr)
     {
-        MessageBoxA(NULL, "Maximum window count reached!", "Error!", MB_ICONEXCLAMATION | MB_OK);
+        ::MessageBoxA(NULL, "Maximum window count reached!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return nullptr;
     }
 
-    SetPropA(handle, "window ptr", window->p_);
+    ::SetPropA(handle, "window ptr", window->p_);
 
     // TODO: If the window should not accept input, this should be false.
     bool shouldActivate = true;
     int cmdFlags = shouldActivate ? SW_SHOW : SW_SHOWNOACTIVATE;
     // If initially minimized, use SW_MINIMIZE : SW_SHOWMINNOACTIVE.
     // If initially maximized, use SW_SHOWMAXIMIZED : SW_MAXIMIZE.
-    ShowWindow(handle, cmdFlags);
+    ::ShowWindow(handle, cmdFlags);
 
     return window;
 }
@@ -223,7 +224,7 @@ Core::Window* Core::Platform::GetNewWindow(const char* name,
 void Core::Platform::DeleteWindow(Window* window) const
 {
     HWND handle = window->p_->handle;
-    DestroyWindow(handle);
+    ::DestroyWindow(handle);
     for (int w = 0; w < MaxWindows; ++w)
     {
         if (p_->windows[w] && (HWND)p_->windows[w]->GetHandle() == handle)
@@ -232,6 +233,69 @@ void Core::Platform::DeleteWindow(Window* window) const
             p_->windows[w] = nullptr;
             break;
         }
+    }
+}
+
+static HCURSOR currentCursor = nullptr;
+void Core::Platform::SetCursor(CursorType type) const
+{
+    if (type == CursorType::None)
+    {
+        ::SetCursor(NULL);
+    }
+    else
+    {
+        LPTSTR cursor = IDC_ARROW;
+        
+        switch (type)
+        {
+        case CursorType::Arrow:
+        {
+            cursor = IDC_ARROW;
+            break;
+        }
+        case CursorType::TextInput:
+        {
+            cursor = IDC_IBEAM;
+            break;
+        }
+        case CursorType::ResizeAll:
+        {
+            cursor = IDC_SIZEALL;
+            break;
+        }
+        case CursorType::ResizeEW:
+        {
+            cursor = IDC_SIZEWE;
+            break;
+        }
+        case CursorType::ResizeNS:
+        {
+            cursor = IDC_SIZENS;
+            break;
+        }
+        case CursorType::ResizeNESW:
+        {
+            cursor = IDC_SIZENESW;
+            break;
+        }
+        case CursorType::ResizeNWSE:
+        {
+            cursor = IDC_SIZENWSE;
+            break;
+        }
+        case CursorType::Hand:
+        {
+            cursor = IDC_HAND;
+            break;
+        }
+        case CursorType::NotAllowed:
+        {
+            cursor = IDC_NO;
+            break;
+        }
+        }
+        currentCursor = ::SetCursor(::LoadCursor(NULL, cursor));
     }
 }
 
@@ -253,59 +317,31 @@ void Core::Platform::Quit()
 
 LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam)
 {
-    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYUP)
+    if (msg == WM_CREATE)
     {
-        Core::EventCode code = msg & 0x0001 ? Core::EventCode::KeyReleased : Core::EventCode::KeyPressed;
+        ::SetCursor(::LoadCursor(NULL, IDC_ARROW));
+    }
+    else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYUP)
+    {
+        Core::EventCode code = (msg & 0x0001) ? Core::EventCode::KeyReleased : Core::EventCode::KeyPressed;
         Core::EventData eventData;
-        switch (wParam)
-        {
-        case VK_RETURN:
-        {
-            eventData.data.u16[0] = (uint16_t)Core::Key::Enter;
-        } break;
-        case VK_ESCAPE:
-        {
-            eventData.data.u16[0] = (uint16_t)Core::Key::Escape;
-        } break;
-        case VK_LEFT:
-        case VK_RIGHT:
-        case VK_UP:
-        case VK_DOWN:
-        {
-            eventData.data.u16[0] = (uint16_t)Core::Key::Arrow;
-            if (wParam == VK_LEFT)
-            {
-                eventData.data.u16[1] = 0;
-            }
-            else if (wParam == VK_RIGHT)
-            {
-                eventData.data.u16[1] = 1;
-            }
-            else if (wParam == VK_UP)
-            {
-                eventData.data.u16[1] = 2;
-            }
-            else if (wParam == VK_DOWN)
-            {
-                eventData.data.u16[1] = 3;
-            }
-        } break;
-        case VK_SPACE:
-        {
-            eventData.data.u16[0] = (uint16_t)Core::Key::Space;
-        } break;
-        default:
-            eventData.data.u16[0] = (uint16_t)Core::Key::Ascii;
-            eventData.data.u16[1] = (uint16_t)wParam;
-            break;
-        }
+        eventData.data.u16[0] = (uint16_t)wParam;
         
         CoreEventSystem.SignalEvent(code, eventData);
         return TRUE;
     }
+    else if (msg == WM_CHAR)
+    {
+        if (wParam > 0 && wParam < 0x10000)
+        {
+            Core::EventData eventData;
+            eventData.data.u16[0] = (unsigned short)wParam;
+            CoreEventSystem.SignalEvent(Core::EventCode::CharacterInput, eventData);
+        }
+        return TRUE;
+    }
     else if (msg == WM_CLOSE)
     {
-        //MessageBoxA(NULL, "Quit!", "Info", MB_ICONEXCLAMATION | MB_OK);
         Core::EventData eventData;
         eventData.data.u64[0] = (uint64_t)hwnd;
         CoreEventSystem.SignalEvent(Core::EventCode::WindowClosed, eventData);
@@ -313,33 +349,53 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
     }
     else if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONDBLCLK)
     {
-        uint8_t whichButton = msg & 0x0001 ? 0 /*left*/ : 1 /*right*/;
+        uint16_t whichButton = msg & 0x0001 ? 0 /*left*/ : 1 /*right*/;
         Core::EventData eventData;
-        POINT pos;
-        GetCursorPos(&pos);
-        eventData.data.u16[0] = (uint16_t)pos.x;
-        eventData.data.u16[1] = (uint16_t)pos.y;
-        eventData.data.u8[5] = whichButton; // left click
+        eventData.data.u16[0] = whichButton;
         CoreEventSystem.SignalEvent(Core::EventCode::MouseButtonPressed, eventData);
         return TRUE;
     }
     else if (msg == WM_LBUTTONUP || msg == WM_RBUTTONUP)
     {
-        uint8_t whichButton = msg & 0x0001 ? 0 /*left*/ : 1 /*right*/;
+        uint16_t whichButton = msg & 0x0001 ? 1 /*left*/ : 0 /*right*/;
         Core::EventData eventData;
-        POINT pos;
-        GetCursorPos(&pos);
-        eventData.data.u16[0] = (uint16_t)pos.x;
-        eventData.data.u16[1] = (uint16_t)pos.y;
-        eventData.data.u8[8] = whichButton; // left click
+        eventData.data.u16[0] = whichButton;
         CoreEventSystem.SignalEvent(Core::EventCode::MouseButtonReleased, eventData);
         return TRUE;
+    }
+    else if (msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP || msg == WM_MBUTTONDBLCLK)
+    {
+        Core::EventCode code = msg & 0x0001 ? Core::EventCode::MouseButtonPressed : Core::EventCode::MouseButtonReleased;
+        Core::EventData eventData;
+        eventData.data.u16[0] = uint16_t(2);
+
+        CoreEventSystem.SignalEvent(code, eventData);
+        return TRUE;
+    }
+    else if (msg == WM_MOUSEWHEEL || msg == WM_MOUSEHWHEEL)
+    {
+        Core::EventData eventData;
+        eventData.data.i8[0] = (int8_t)(GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA);
+        eventData.data.u8[1] = (msg == WM_MOUSEHWHEEL) ? 1 : 0;
+
+        CoreEventSystem.SignalEvent(Core::EventCode::MouseWheel, eventData);
+        return TRUE;
+    }
+    else if (msg == WM_MOUSEMOVE)
+    {
+        POINT pos;
+        ::GetCursorPos(&pos);
+        ::ScreenToClient(hwnd, &pos);
+        Core::EventData eventData;
+        eventData.data.u16[0] = (uint16_t)pos.x;
+        eventData.data.u16[1] = (uint16_t)pos.y;
+        CoreEventSystem.SignalEvent(Core::EventCode::MouseMoved, eventData);
     }
     else if (msg == WM_SIZE)
     {
         Core::EventData eventData;
         RECT rectangle;
-        GetClientRect(hwnd, &rectangle);
+        ::GetClientRect(hwnd, &rectangle);
         eventData.data.u16[0] = (uint16_t)(rectangle.right - rectangle.left);
         eventData.data.u16[1] = (uint16_t)(rectangle.bottom - rectangle.top);
         CoreEventSystem.SignalEvent(Core::EventCode::WindowResized, eventData);

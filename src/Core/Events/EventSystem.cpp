@@ -1,11 +1,11 @@
 #include "EventSystem.hpp"
 
-void Core::EventSystem::SubscribeToEvent(EventCode code, OnEventFunc fnc, void* listener)
+void Core::EventSystem::SubscribeToEvent(EventCode code, OnEventFunc fnc, void* const listener)
 {
 	registeredEvents_[code][listener] = fnc;
 }
 
-void Core::EventSystem::UnsubscribeFromEvent(EventCode code, void* listener)
+void Core::EventSystem::UnsubscribeFromEvent(EventCode code, void* const listener)
 {
 	registeredEvents_[code].erase(listener);
 }
