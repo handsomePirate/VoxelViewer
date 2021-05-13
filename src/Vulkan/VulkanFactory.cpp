@@ -234,6 +234,7 @@ void VulkanFactory::Swapchain::Create(const char* name, const Device::DeviceInfo
 	if (result != VK_SUCCESS)
 	{
 		CoreLogFatal("Failed to create swapchain!");
+		assert(false);
 	}
 
 	if (oldSwapchainProvided)

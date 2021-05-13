@@ -1,6 +1,7 @@
 #include "Platform.hpp"
 #include "Core/Events/EventSystem.hpp"
 #include "Core/Input/Input.hpp"
+#include "Core/Logger/Logger.hpp"
 
 #ifdef PLATFORM_WINDOWS
 #include <Windows.h>
@@ -94,7 +95,7 @@ uint64_t Core::Window::GetHandle() const
 void Core::Window::PollMessages()
 {
     MSG message;
-    while (::PeekMessageA(&message, p_->handle, 0, 0, PM_REMOVE))
+    while (::PeekMessageA(&message, p_->handle, 0, 0, PM_REMOVE) > 0)
     {
         ::TranslateMessage(&message);
         ::DispatchMessageA(&message);
@@ -118,6 +119,20 @@ bool Core::Window::IsMinimized() const
 void Core::Window::SetShouldClose()
 {
     p_->shouldClose = true;
+}
+
+uint32_t Core::Window::GetWidth() const
+{
+    RECT rectangle;
+    ::GetClientRect(p_->handle, &rectangle);
+    return rectangle.right - rectangle.left;
+}
+
+uint32_t Core::Window::GetHeight() const
+{
+    RECT rectangle;
+    ::GetClientRect(p_->handle, &rectangle);
+    return rectangle.bottom - rectangle.top;
 }
 
 Core::Window::Window()
@@ -236,9 +251,14 @@ void Core::Platform::DeleteWindow(Window* window) const
     }
 }
 
-static HCURSOR currentCursor = nullptr;
+static bool AllowCursorChange = true;
 void Core::Platform::SetCursor(CursorType type) const
 {
+    if (!AllowCursorChange)
+    {
+        return;
+    }
+
     if (type == CursorType::None)
     {
         ::SetCursor(NULL);
@@ -295,7 +315,7 @@ void Core::Platform::SetCursor(CursorType type) const
             break;
         }
         }
-        currentCursor = ::SetCursor(::LoadCursor(NULL, cursor));
+        ::SetCursor(::LoadCursor(NULL, cursor));
     }
 }
 
@@ -387,8 +407,8 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
         ::GetCursorPos(&pos);
         ::ScreenToClient(hwnd, &pos);
         Core::EventData eventData;
-        eventData.data.u16[0] = (uint16_t)pos.x;
-        eventData.data.u16[1] = (uint16_t)pos.y;
+        eventData.data.i16[0] = (int16_t)pos.x;
+        eventData.data.i16[1] = (int16_t)pos.y;
         CoreEventSystem.SignalEvent(Core::EventCode::MouseMoved, eventData);
     }
     else if (msg == WM_SIZE)
@@ -399,6 +419,43 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
         eventData.data.u16[0] = (uint16_t)(rectangle.right - rectangle.left);
         eventData.data.u16[1] = (uint16_t)(rectangle.bottom - rectangle.top);
         CoreEventSystem.SignalEvent(Core::EventCode::WindowResized, eventData);
+    }
+    else if (msg == WM_SETCURSOR)
+    {
+        int pos = LOWORD(lParam);
+        if (pos == HTRIGHT || pos == HTLEFT)
+        {
+            AllowCursorChange = false;
+            SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+            return TRUE;
+        }
+        else if (pos == HTTOP || pos == HTBOTTOM)
+        {
+            AllowCursorChange = false;
+            SetCursor(LoadCursor(NULL, IDC_SIZENS));
+            return TRUE;
+        }
+        else if (pos == HTBOTTOMRIGHT || pos == HTTOPLEFT)
+        {
+            AllowCursorChange = false;
+            SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
+            return TRUE;
+        }
+        else if (pos == HTBOTTOMLEFT || pos == HTTOPRIGHT)
+        {
+            AllowCursorChange = false;
+            SetCursor(LoadCursor(NULL, IDC_SIZENESW));
+            return TRUE;
+        }
+        else// (pos == HTCLIENT)
+        {
+            if (!AllowCursorChange)
+            {
+                AllowCursorChange = true;
+                SetCursor(LoadCursor(NULL, IDC_ARROW));
+            }
+            return TRUE;
+        }
     }
 
     return DefWindowProcA(hwnd, msg, wParam, lParam);

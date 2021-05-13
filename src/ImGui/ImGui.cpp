@@ -144,7 +144,6 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		ImGui::Text("Device: %s", deviceInfo.Properties.deviceName);
 		ImGui::Text("%.2f ms per frame", (1000.0f / fps), fps);
 		ImGui::Text("(%.1f fps)", fps);
-		ImGui::InputText("text input", inputText, 256);
 		ImGui::End();
 	}
 

@@ -28,7 +28,7 @@ struct FrameData
 class VulkanRender
 {
 public:
-	static uint32_t PrepareFrame(const Context& context, const WindowData& windowData);
-	static void RenderFrame(const Context& context, const WindowData& windowData, const FrameData& frameData);
+	static uint32_t PrepareFrame(const Context& context, const WindowData& windowData, bool& shouldResize);
+	static void RenderFrame(const Context& context, const WindowData& windowData, const FrameData& frameData, bool& shouldResize);
 	static void ComputeFrame(const Context& context, const FrameData& frameData);
 };

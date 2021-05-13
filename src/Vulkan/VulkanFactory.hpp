@@ -101,9 +101,6 @@ namespace VulkanFactory
 		{
 			VkSwapchainKHR Handle;
 
-			uint32_t Width;
-			uint32_t Height;
-
 			std::vector<VkImage> Images;
 			std::vector<VkImageView> ImageViews;
 

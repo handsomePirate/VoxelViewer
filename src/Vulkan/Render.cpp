@@ -3,9 +3,9 @@
 #include "Core/Logger/Logger.hpp"
 
 inline VkSubmitInfo PrepareSubmitInfo(bool semaphores = true);
-void PresentFrame(VkQueue queue, VkSwapchainKHR swapchain, VkSemaphore renderSemaphore, uint32_t currentImageIndex);
+void PresentFrame(VkQueue queue, VkSwapchainKHR swapchain, VkSemaphore renderSemaphore, uint32_t currentImageIndex, bool& shouldResize);
 
-uint32_t VulkanRender::PrepareFrame(const Context& context, const WindowData& windowData)
+uint32_t VulkanRender::PrepareFrame(const Context& context, const WindowData& windowData, bool& shouldResize)
 {
 	// Acquire the next image from the swap chain
 	uint32_t currentImageIndex;
@@ -14,7 +14,7 @@ uint32_t VulkanRender::PrepareFrame(const Context& context, const WindowData& wi
 	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
 	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
 	{
-		CoreLogWarn("Should resize Vulkan structures.");
+		shouldResize = true;
 	}
 	else
 	{
@@ -23,7 +23,7 @@ uint32_t VulkanRender::PrepareFrame(const Context& context, const WindowData& wi
 	return currentImageIndex;
 }
 
-void VulkanRender::RenderFrame(const Context& context, const WindowData& windowData, const FrameData& frameData)
+void VulkanRender::RenderFrame(const Context& context, const WindowData& windowData, const FrameData& frameData, bool& shouldResize)
 {
 	static VkPipelineStageFlags pipelineStageWait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	static auto submitInfo = PrepareSubmitInfo();
@@ -35,7 +35,7 @@ void VulkanRender::RenderFrame(const Context& context, const WindowData& windowD
 	VkResult result = vkQueueSubmit(context.Queue, 1, &submitInfo, VK_NULL_HANDLE);
 	assert(result == VK_SUCCESS);
 
-	PresentFrame(context.Queue, windowData.Swapchain, windowData.RenderSemaphore, frameData.ImageIndex);
+	PresentFrame(context.Queue, windowData.Swapchain, windowData.RenderSemaphore, frameData.ImageIndex, shouldResize);
 }
 
 void VulkanRender::ComputeFrame(const Context& context, const FrameData& frameData)
@@ -66,7 +66,7 @@ inline VkSubmitInfo PrepareSubmitInfo(bool semaphores)
 	return submitInfo;
 }
 
-void PresentFrame(VkQueue queue, VkSwapchainKHR swapchain, VkSemaphore renderSemaphore, uint32_t currentImageIndex)
+void PresentFrame(VkQueue queue, VkSwapchainKHR swapchain, VkSemaphore renderSemaphore, uint32_t currentImageIndex, bool& shouldResize)
 {
 	auto presentInitializer = VulkanInitializers::Present(1, &swapchain, &currentImageIndex);
 	presentInitializer.waitSemaphoreCount = 1;
@@ -77,7 +77,7 @@ void PresentFrame(VkQueue queue, VkSwapchainKHR swapchain, VkSemaphore renderSem
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			// Swap chain is no longer compatible with the surface and needs to be recreated
-			CoreLogWarn("Should resize Vulkan structures.");
+			shouldResize = true;
 			return;
 		}
 		else

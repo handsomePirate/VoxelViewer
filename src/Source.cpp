@@ -14,6 +14,7 @@
 #include <string>
 #include <functional>
 #include <chrono>
+#include <thread>
 
 #include <iostream>
 
@@ -468,40 +469,89 @@ int main(int argc, char* argv[])
 		{
 			auto before = std::chrono::high_resolution_clock::now();
 
-			currentImageIndex = VulkanRender::PrepareFrame(renderingContext, windowData);
+			bool shouldResize = false;
+			currentImageIndex = VulkanRender::PrepareFrame(renderingContext, windowData, shouldResize);
 
-			renderingFrameData.CommandBuffer = drawCommandBuffers[currentImageIndex];
-			renderingFrameData.ImageIndex = currentImageIndex;
-
-			VulkanRender::RenderFrame(renderingContext, windowData, renderingFrameData);
-
-			computeFrameData.CommandBuffer = computeCommandBuffer;
-			computeFrameData.Fence = computeFence;
-
-			VulkanRender::ComputeFrame(computeContext, computeFrameData);
-
-			// TODO: Update UBOs when there are some.
-
-			auto now = std::chrono::high_resolution_clock::now();
-			auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
-
-			auto millisecondCount = std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count();
-			if (millisecondCount > 1000)
+			if (!shouldResize)
 			{
-				fps = frameCounterPerSecond * (1000.f / (float)millisecondCount);
-				frameCounterPerSecond = 0;
-				last = now;
+				renderingFrameData.CommandBuffer = drawCommandBuffers[currentImageIndex];
+				renderingFrameData.ImageIndex = currentImageIndex;
+
+				VulkanRender::RenderFrame(renderingContext, windowData, renderingFrameData, shouldResize);
 			}
 
-			++frameCounterPerSecond;
-
-			if (CoreInput.IsKeyPressed(Core::Input::Keys::Escape))
+			if (!shouldResize)
 			{
-				CorePlatform.Quit();
-			}
+				computeFrameData.CommandBuffer = computeCommandBuffer;
+				computeFrameData.Fence = computeFence;
 
-			bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-				(float)windowWidth, (float)windowHeight, renderDelta, fps);
+				VulkanRender::ComputeFrame(computeContext, computeFrameData);
+				// TODO: Update UBOs when there are some.
+
+				auto now = std::chrono::high_resolution_clock::now();
+				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
+
+				auto millisecondCount = std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count();
+				if (millisecondCount > 1000)
+				{
+					fps = frameCounterPerSecond * (1000.f / (float)millisecondCount);
+					frameCounterPerSecond = 0;
+					last = now;
+				}
+
+				++frameCounterPerSecond;
+
+				if (CoreInput.IsKeyPressed(Core::Input::Keys::Escape))
+				{
+					CorePlatform.Quit();
+				}
+
+				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
+					(float)windowWidth, (float)windowHeight, renderDelta, fps);
+			}
+			
+			if (shouldResize)
+			{
+				vkDeviceWaitIdle(deviceInfo.Handle);
+
+				windowWidth = window->GetWidth();
+				windowHeight = window->GetHeight();
+
+				for (uint32_t f = 0; f < framebuffers.size(); ++f)
+				{
+					VulkanFactory::Framebuffer::Destroy(deviceInfo.Handle, framebuffers[f]);
+				}
+				VulkanFactory::Image::Destroy(deviceInfo.Handle, depthStencil);
+
+				deviceInfo.SurfaceCapabilities = VulkanUtils::Surface::QueryCapabilities(pickedDevice, surface);
+
+				VulkanFactory::Swapchain::SwapchainInfo oldSwapchainInfo = swapchainInfo;
+				VulkanFactory::Swapchain::Create("VV Swapchain", deviceInfo, windowWidth, windowHeight, surface,
+					swapchainInfo, &oldSwapchainInfo);
+				windowData.Swapchain = swapchainInfo.Handle;
+
+				VulkanFactory::Image::Create("Depth Stencil Image", deviceInfo, windowWidth, windowHeight,
+					deviceInfo.DepthFormat, depthStencil);
+
+				for (int f = 0; f < framebuffers.size(); ++f)
+				{
+					assert(f < 1000);
+					char framebufferName[sizeof("VV Framebuffer ") + 3 + sizeof(char)];
+					sprintf_s(framebufferName, "VV Framebuffer %d", f);
+
+					framebuffers[f] = VulkanFactory::Framebuffer::Create(framebufferName, deviceInfo.Handle, renderPass,
+						windowWidth, windowHeight, swapchainInfo.ImageViews[f], depthStencil.View);
+				}
+
+				commandBufferBuildData.Width = windowWidth;
+				commandBufferBuildData.Height = windowHeight;
+
+				auto now = std::chrono::high_resolution_clock::now();
+				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
+
+				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
+					(float)windowWidth, (float)windowHeight, renderDelta, fps);
+			}
 			
 			for (int i = 0; i < (int)drawCommandBuffers.size(); ++i)
 			{

@@ -15,6 +15,10 @@ namespace Core
 		bool IsMinimized() const;
 
 		void SetShouldClose();
+
+		uint32_t GetWidth() const;
+		uint32_t GetHeight() const;
+
 	private:
 		friend class Platform;
 		Window();
