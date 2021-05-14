@@ -565,7 +565,6 @@ int main(int argc, char* argv[])
 				{
 					if (shaderList[s].shouldReload)
 					{
-						CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
 						if (shaderList[s].Name == "simple.vert.glsl")
 						{
 							VkShaderModule newShader = Shader::Compiler::LoadShader(deviceInfo.Handle, shaderList[s].Path);
@@ -577,9 +576,10 @@ int main(int argc, char* argv[])
 								graphicsPipeline = VulkanFactory::Pipeline::CreateGraphics(deviceInfo.Handle, renderPass,
 									vertexShader, fragmentShader, graphicsPipelineLayout, pipelineCache);
 								commandBufferBuildData.Pipeline = graphicsPipeline;
-								ShaderManager.SignalShaderReloaded(s);
-								break;
+								CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
 							}
+							ShaderManager.SignalShaderReloaded(s);
+							break;
 						}
 						if (shaderList[s].Name == "simple.frag.glsl")
 						{
@@ -592,9 +592,10 @@ int main(int argc, char* argv[])
 								graphicsPipeline = VulkanFactory::Pipeline::CreateGraphics(deviceInfo.Handle, renderPass,
 									vertexShader, fragmentShader, graphicsPipelineLayout, pipelineCache);
 								commandBufferBuildData.Pipeline = graphicsPipeline;
-								ShaderManager.SignalShaderReloaded(s);
-								break;
+								CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
 							}
+							ShaderManager.SignalShaderReloaded(s);
+							break;
 						}
 						if (shaderList[s].Name == "simple.comp.glsl")
 						{
@@ -615,9 +616,11 @@ int main(int argc, char* argv[])
 								vkCmdDispatch(computeCommandBuffer, targetWidth / 16, targetHeight / 16, 1);
 
 								VulkanUtils::CommandBuffer::End(computeCommandBuffer);
-								ShaderManager.SignalShaderReloaded(s);
-								break;
+
+								CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
 							}
+							ShaderManager.SignalShaderReloaded(s);
+							break;
 						}
 						if (shaderList[s].Name == "ui.vert.glsl")
 						{
@@ -630,9 +633,10 @@ int main(int argc, char* argv[])
 								guiPipeline = VulkanFactory::Pipeline::CreateGuiGraphics(deviceInfo.Handle, renderPass,
 									guiVertexShader, guiFragmentShader, guiPipelineLayout, pipelineCache);
 								guiCommandBufferBuildData.Pipeline = guiPipeline;
-								ShaderManager.SignalShaderReloaded(s);
-								break;
+								CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
 							}
+							ShaderManager.SignalShaderReloaded(s);
+							break;
 						}
 						if (shaderList[s].Name == "ui.frag.glsl")
 						{
@@ -645,9 +649,10 @@ int main(int argc, char* argv[])
 								guiPipeline = VulkanFactory::Pipeline::CreateGuiGraphics(deviceInfo.Handle, renderPass,
 									guiVertexShader, guiFragmentShader, guiPipelineLayout, pipelineCache);
 								guiCommandBufferBuildData.Pipeline = guiPipeline;
-								ShaderManager.SignalShaderReloaded(s);
-								break;
+								CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
 							}
+							ShaderManager.SignalShaderReloaded(s);
+							break;
 						}
 					}
 				}
