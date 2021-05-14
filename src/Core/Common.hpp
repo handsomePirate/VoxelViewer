@@ -1,6 +1,7 @@
 #pragma once
 
 //#define LOGGER_DO_TRACE
+//#define IMGUI_LOGGER_USE_COLORS
 
 #include <vulkan/vulkan.hpp>
 

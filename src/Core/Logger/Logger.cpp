@@ -46,6 +46,26 @@ void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 	{
 		switch (severity)
 		{
+#ifdef IMGUI_LOGGER_USE_COLORS
+		case Core::LoggerSeverity::Fatal:
+			imGuiLogger_.Log({ 1.f, .3f, .3f, 1.f }, "[Fatal] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Error:
+			imGuiLogger_.Log({ .9f, 0.f, 0.f, 1.f }, "[Error] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Warn:
+			imGuiLogger_.Log({ .8f, .7f, 0.f, 1.f }, "[Warn] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Info:
+			imGuiLogger_.Log({ .9f, .9f, .9f, 1.f }, "[Info] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Debug:
+			imGuiLogger_.Log({ .4f, .8f, .4f, 1.f }, "[Debug] %s", buffer);
+			break;
+		case Core::LoggerSeverity::Trace:
+			imGuiLogger_.Log({ .5f, .5f, .5f, .8f }, "[Trace] %s", buffer);
+			break;
+#else
 		case Core::LoggerSeverity::Fatal:
 			imGuiLogger_.Log("[Fatal] %s", buffer);
 			break;
@@ -64,6 +84,7 @@ void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 		case Core::LoggerSeverity::Trace:
 			imGuiLogger_.Log("[Trace] %s", buffer);
 			break;
+#endif
 		default:
 			break;
 		}

@@ -255,7 +255,6 @@ int main(int argc, char* argv[])
 
 	// TODO: Storage & Uniform buffers.
 
-
 #pragma region Texture target
 	const int targetWidth = 2048;
 	const int targetHeight = 2048;
