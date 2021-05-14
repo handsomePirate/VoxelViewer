@@ -234,6 +234,7 @@ namespace VulkanFactory
 	{
 	public:
 		static VkShaderModule Create(const char* name, VkDevice device, const std::string& path);
+		static VkShaderModule Create(const char* name, VkDevice device, uint32_t* const data, uint32_t size);
 		static void Destroy(VkDevice device, VkShaderModule shader);
 	};
 };

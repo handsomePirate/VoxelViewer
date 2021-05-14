@@ -74,10 +74,10 @@ void Core::Logger::Log(Core::LoggerSeverity severity, const char* message, ...)
 	}
 }
 
-void Core::Logger::DrawImGuiLogger(const char* title, bool* p_open)
+void Core::Logger::DrawImGuiLogger(const char* title, bool* open)
 {
 	if ((int)type_ & (int)LoggerType::ImGui)
 	{
-		imGuiLogger_.Draw(title, p_open);
+		imGuiLogger_.Draw(title, open);
 	}
 }

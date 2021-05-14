@@ -3,6 +3,7 @@
 #include "Core/Logger/Logger.hpp"
 #include "Core/Input/Input.hpp"
 #include "Core/Platform/Platform.hpp"
+#include "Vulkan/ShaderManager.hpp"
 
 bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& vertexBuffer, VulkanFactory::Buffer::BufferInfo& indexBuffer);
@@ -161,6 +162,8 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	}
 
 	CoreLogger.DrawImGuiLogger("Log");
+
+	ShaderManager.Draw("Shaders");
 
 	//ImGui::ShowDemoWindow();
 

@@ -37,7 +37,7 @@ namespace Core
 
 		void Log(LoggerSeverity severity, const char* message, ...);
 
-		void DrawImGuiLogger(const char* title, bool* p_open = NULL);
+		void DrawImGuiLogger(const char* title, bool* open = nullptr);
 
 	private:
 		LoggerType type_ = LoggerType::Both;

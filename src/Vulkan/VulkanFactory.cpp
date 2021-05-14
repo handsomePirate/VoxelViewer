@@ -845,26 +845,19 @@ VkShaderModule VulkanFactory::Shader::Create(const char* name, VkDevice device, 
 	std::vector<uint8_t> byteCode;
 
 	{
-		FILE* f;
-		fopen_s(&f, path.c_str(), "rb");
-
-		if (!f)
-		{
-			CoreLogError("Failed to load shader code.");
-			return VK_NULL_HANDLE;
-		}
-
-		fseek(f, 0, SEEK_END);
-		const size_t fileSize = ftell(f);
-		fseek(f, 0, SEEK_SET);
-		byteCode.resize(fileSize);
-		fread_s(byteCode.data(), fileSize, 1, fileSize, f);
-		fclose(f);
+		size_t size = CoreFilesystem.GetFileSize(path);
+		byteCode.resize(size);
+		CoreFilesystem.ReadFile(path, byteCode.data(), size);
 	}
 
+	return Create(name, device, (uint32_t* const)byteCode.data(), (uint32_t)byteCode.size());
+}
+
+VkShaderModule VulkanFactory::Shader::Create(const char* name, VkDevice device, uint32_t* const data, uint32_t size)
+{
 	auto shaderInitializer = VulkanInitializers::Shader();
-	shaderInitializer.codeSize = (uint32_t)byteCode.size();
-	shaderInitializer.pCode = (uint32_t* const)byteCode.data();
+	shaderInitializer.codeSize = size;
+	shaderInitializer.pCode = data;
 
 	VkShaderModule shaderModule;
 	VkResult result = vkCreateShaderModule(device, &shaderInitializer, nullptr, &shaderModule);

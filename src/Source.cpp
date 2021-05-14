@@ -9,6 +9,8 @@
 #include "Vulkan/Render.hpp"
 #include "Core/Input/Input.hpp"
 #include "ImGui/ImGui.hpp"
+#include "Vulkan/ShaderCompiler.hpp"
+#include "Vulkan/ShaderManager.hpp"
 #include <imgui.h>
 #include <vector>
 #include <string>
@@ -63,7 +65,7 @@ int main(int argc, char* argv[])
 
 #pragma region Singleton initialization
 	volatile auto input = CoreInput;
-	CoreLogger.SetTypes(Core::LoggerType::ImGui);
+	CoreLogger.SetTypes(Core::LoggerType::Both);
 #pragma endregion
 
 	//=========================== Testing event logging ==============================
@@ -240,14 +242,15 @@ int main(int argc, char* argv[])
 
 #pragma region Shaders
 	std::string vertexShaderPath = CoreFilesystem.GetAbsolutePath("simple.vert.glsl.spv");
-	VkShaderModule vertexShader = VulkanFactory::Shader::Create("Passthrough Vertex Shader Module",
-		deviceInfo.Handle, vertexShaderPath);
+	VkShaderModule vertexShader = Shader::Compiler::LoadShader(deviceInfo.Handle, vertexShaderPath);;
 	std::string fragmentShaderPath = CoreFilesystem.GetAbsolutePath("simple.frag.glsl.spv");
-	VkShaderModule fragmentShader = VulkanFactory::Shader::Create("Passthrough Fragment Shader Module",
-		deviceInfo.Handle, fragmentShaderPath);
+	VkShaderModule fragmentShader = Shader::Compiler::LoadShader(deviceInfo.Handle, fragmentShaderPath);;
 	std::string computeShaderPath = CoreFilesystem.GetAbsolutePath("simple.comp.glsl.spv");
-	VkShaderModule computeShader = VulkanFactory::Shader::Create("Trace Compute Shader Module",
-		deviceInfo.Handle, computeShaderPath);
+	VkShaderModule computeShader = Shader::Compiler::LoadShader(deviceInfo.Handle, computeShaderPath);
+
+	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.vert.glsl"));
+	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.frag.glsl"));
+	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.comp.glsl"));
 #pragma endregion
 
 	// TODO: Storage & Uniform buffers.
@@ -391,11 +394,12 @@ int main(int argc, char* argv[])
 
 	// Shaders.
 	std::string guiVertexShaderPath = CoreFilesystem.GetAbsolutePath("ui.vert.glsl.spv");
-	VkShaderModule guiVertexShader = VulkanFactory::Shader::Create("GUI Vertex Shader Module",
-		deviceInfo.Handle, guiVertexShaderPath);
+	VkShaderModule guiVertexShader = Shader::Compiler::LoadShader(deviceInfo.Handle, guiVertexShaderPath);
 	std::string guiFragmentShaderPath = CoreFilesystem.GetAbsolutePath("ui.frag.glsl.spv");
-	VkShaderModule guiFragmentShader = VulkanFactory::Shader::Create("GUI Fragment Shader Module",
-		deviceInfo.Handle, guiFragmentShaderPath);
+	VkShaderModule guiFragmentShader = Shader::Compiler::LoadShader(deviceInfo.Handle, guiFragmentShaderPath);
+
+	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/ui.vert.glsl"));
+	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/ui.frag.glsl"));
 
 	// Pipeline.
 	auto pushConstantRangeInitializer = VulkanInitializers::PushConstantRange(VK_SHADER_STAGE_VERTEX_BIT,
@@ -554,6 +558,101 @@ int main(int argc, char* argv[])
 					(float)windowWidth, (float)windowHeight, renderDelta, fps);
 			}
 			
+			{
+				const auto& shaderList = ShaderManager.GetShaderList();
+
+				for (int s = 0; s < shaderList.size(); ++s)
+				{
+					if (shaderList[s].shouldReload)
+					{
+						CoreLogInfo("Reloaded shader %s", shaderList[s].Name.c_str());
+						if (shaderList[s].Name == "simple.vert.glsl")
+						{
+							VkShaderModule newShader = Shader::Compiler::LoadShader(deviceInfo.Handle, shaderList[s].Path);
+							if (newShader != VK_NULL_HANDLE)
+							{
+								VulkanFactory::Pipeline::Destroy(deviceInfo.Handle, graphicsPipeline);
+								VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
+								vertexShader = newShader;
+								graphicsPipeline = VulkanFactory::Pipeline::CreateGraphics(deviceInfo.Handle, renderPass,
+									vertexShader, fragmentShader, graphicsPipelineLayout, pipelineCache);
+								commandBufferBuildData.Pipeline = graphicsPipeline;
+								ShaderManager.SignalShaderReloaded(s);
+								break;
+							}
+						}
+						if (shaderList[s].Name == "simple.frag.glsl")
+						{
+							VkShaderModule newShader = Shader::Compiler::LoadShader(deviceInfo.Handle, shaderList[s].Path);
+							if (newShader != VK_NULL_HANDLE)
+							{
+								VulkanFactory::Pipeline::Destroy(deviceInfo.Handle, graphicsPipeline);
+								VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
+								fragmentShader = newShader;
+								graphicsPipeline = VulkanFactory::Pipeline::CreateGraphics(deviceInfo.Handle, renderPass,
+									vertexShader, fragmentShader, graphicsPipelineLayout, pipelineCache);
+								commandBufferBuildData.Pipeline = graphicsPipeline;
+								ShaderManager.SignalShaderReloaded(s);
+								break;
+							}
+						}
+						if (shaderList[s].Name == "simple.comp.glsl")
+						{
+							vkDeviceWaitIdle(deviceInfo.Handle);
+							VkShaderModule newShader = Shader::Compiler::LoadShader(deviceInfo.Handle, shaderList[s].Path);
+							if (newShader != VK_NULL_HANDLE)
+							{
+								VulkanFactory::Pipeline::Destroy(deviceInfo.Handle, computePipeline);
+								VulkanFactory::Shader::Destroy(deviceInfo.Handle, computeShader);
+								computeShader = newShader;
+								computePipeline = VulkanFactory::Pipeline::CreateCompute(deviceInfo.Handle,
+									computePipelineLayout, computeShader, pipelineCache);
+								VulkanUtils::CommandBuffer::Begin(computeCommandBuffer);
+
+								vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+								vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, 0);
+
+								vkCmdDispatch(computeCommandBuffer, targetWidth / 16, targetHeight / 16, 1);
+
+								VulkanUtils::CommandBuffer::End(computeCommandBuffer);
+								ShaderManager.SignalShaderReloaded(s);
+								break;
+							}
+						}
+						if (shaderList[s].Name == "ui.vert.glsl")
+						{
+							VkShaderModule newShader = Shader::Compiler::LoadShader(deviceInfo.Handle, shaderList[s].Path);
+							if (newShader != VK_NULL_HANDLE)
+							{
+								VulkanFactory::Pipeline::Destroy(deviceInfo.Handle, guiPipeline);
+								VulkanFactory::Shader::Destroy(deviceInfo.Handle, guiVertexShader);
+								guiVertexShader = newShader;
+								guiPipeline = VulkanFactory::Pipeline::CreateGuiGraphics(deviceInfo.Handle, renderPass,
+									guiVertexShader, guiFragmentShader, guiPipelineLayout, pipelineCache);
+								guiCommandBufferBuildData.Pipeline = guiPipeline;
+								ShaderManager.SignalShaderReloaded(s);
+								break;
+							}
+						}
+						if (shaderList[s].Name == "ui.frag.glsl")
+						{
+							VkShaderModule newShader = Shader::Compiler::LoadShader(deviceInfo.Handle, shaderList[s].Path);
+							if (newShader != VK_NULL_HANDLE)
+							{
+								VulkanFactory::Pipeline::Destroy(deviceInfo.Handle, guiPipeline);
+								VulkanFactory::Shader::Destroy(deviceInfo.Handle, guiFragmentShader);
+								guiFragmentShader = newShader;
+								guiPipeline = VulkanFactory::Pipeline::CreateGuiGraphics(deviceInfo.Handle, renderPass,
+									guiVertexShader, guiFragmentShader, guiPipelineLayout, pipelineCache);
+								guiCommandBufferBuildData.Pipeline = guiPipeline;
+								ShaderManager.SignalShaderReloaded(s);
+								break;
+							}
+						}
+					}
+				}
+			}
+
 			for (int i = 0; i < (int)drawCommandBuffers.size(); ++i)
 			{
 				commandBufferBuildData.Framebuffer = framebuffers[i];

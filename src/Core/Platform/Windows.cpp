@@ -5,7 +5,6 @@
 
 #ifdef PLATFORM_WINDOWS
 #include <Windows.h>
-#include <filesystem>
 
 LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam);
 
@@ -498,9 +497,60 @@ std::string Core::Filesystem::GetAbsolutePath(const std::string& relativePath) c
 
 bool Core::Filesystem::FileExists(const std::string& path) const
 {
-    std::filesystem::path myPath(path);
-    std::filesystem::path absolutePath = myPath.is_relative() ? GetAbsolutePath(path) : myPath;
+    std::filesystem::path fsPath(path);
+    std::filesystem::path absolutePath = fsPath.is_relative() ? GetAbsolutePath(path) : fsPath;
     return std::filesystem::exists(absolutePath);
+}
+
+size_t Core::Filesystem::GetFileSize(const std::string& path) const
+{
+    FILE* f;
+    fopen_s(&f, path.c_str(), "rb");
+
+    if (!f)
+    {
+        CoreLogError("Failed to open file (%s).", path);
+        return 0;
+    }
+
+    fseek(f, 0, SEEK_END);
+    const size_t fileSize = ftell(f);
+    fclose(f);
+    return fileSize;
+}
+
+void Core::Filesystem::ReadFile(const std::string& path, void* data, size_t size) const
+{
+    FILE* f;
+    fopen_s(&f, path.c_str(), "rb");
+
+    if (!f)
+    {
+        CoreLogError("Failed to open file (%s).", path);
+        return;
+    }
+
+    fread_s(data, size, 1, size, f);
+    fclose(f);
+}
+
+std::string Core::Filesystem::Filename(const std::string& path) const
+{
+    std::filesystem::path fsPath(path);
+    return fsPath.filename().string();
+}
+
+std::string Core::Filesystem::Extension(const std::string& path) const
+{
+    std::filesystem::path fsPath(path);
+    return fsPath.extension().string();
+}
+
+std::string Core::Filesystem::RemoveExtension(const std::string& path) const
+{
+    std::filesystem::path fsPath(path);
+    fsPath.replace_extension();
+    return fsPath.string();
 }
 
 #endif

@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Common.hpp"
 #include "Core/Singleton.hpp"
+#include <filesystem>
 
 namespace Core
 {
@@ -76,6 +77,12 @@ namespace Core
 		std::string ExecutableName() const;
 		std::string GetAbsolutePath(const std::string& relativePath) const;
 		bool FileExists(const std::string& path) const;
+		size_t GetFileSize(const std::string& path) const;
+		void ReadFile(const std::string& path, void* data, size_t size) const;
+		std::string Filename(const std::string& path) const;
+		std::string Extension(const std::string& path) const;
+		std::string RemoveExtension(const std::string& path) const;
+		void RemoveExtension(std::string& path) const;
 
 	private:
 		struct Private;
