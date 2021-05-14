@@ -7,5 +7,5 @@ void main()
 {
 	float green = gl_GlobalInvocationID.x / 2048.f;
 	float blue = gl_GlobalInvocationID.y / 2048.f;
-	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.f, green, blue, 1.f));
+	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(blue, 0.f, green, 1.f));
 }
