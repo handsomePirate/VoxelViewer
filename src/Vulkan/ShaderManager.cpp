@@ -5,8 +5,16 @@
 
 void Shader::Manager::AddShader(const std::string& path)
 {
-	std::string name = CoreFilesystem.Filename(path);
-	shaders_.push_back({ name, path, false });
+    if (CoreFilesystem.FileExists(path))
+    {
+        std::string name = CoreFilesystem.Filename(path);
+        shaders_.push_back({ name, path, false });
+    }
+}
+
+bool Shader::Manager::ShouldDraw()
+{
+    return !shaders_.empty();
 }
 
 void Shader::Manager::Draw(const char* title, bool* open)

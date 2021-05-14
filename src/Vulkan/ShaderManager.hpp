@@ -20,6 +20,7 @@ namespace Shader
 
 		void AddShader(const std::string& path);
 
+		bool ShouldDraw();
 		void Draw(const char* title, bool* open = nullptr);
 
 		const std::vector<ShaderEntry>& GetShaderList() const;

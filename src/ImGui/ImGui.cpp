@@ -163,7 +163,10 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 
 	CoreLogger.DrawImGuiLogger("Log");
 
-	ShaderManager.Draw("Shaders");
+	if (ShaderManager.ShouldDraw())
+	{
+		ShaderManager.Draw("Shaders");
+	}
 
 	//ImGui::ShowDemoWindow();
 
