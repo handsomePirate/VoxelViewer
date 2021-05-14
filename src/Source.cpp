@@ -241,16 +241,16 @@ int main(int argc, char* argv[])
 	//=========================== Shaders and rendering structures ===================
 
 #pragma region Shaders
-	std::string vertexShaderPath = CoreFilesystem.GetAbsolutePath("simple.vert.glsl.spv");
+	std::string vertexShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.vert.glsl");
 	VkShaderModule vertexShader = Shader::Compiler::LoadShader(deviceInfo.Handle, vertexShaderPath);;
-	std::string fragmentShaderPath = CoreFilesystem.GetAbsolutePath("simple.frag.glsl.spv");
+	std::string fragmentShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.frag.glsl");
 	VkShaderModule fragmentShader = Shader::Compiler::LoadShader(deviceInfo.Handle, fragmentShaderPath);;
-	std::string computeShaderPath = CoreFilesystem.GetAbsolutePath("simple.comp.glsl.spv");
+	std::string computeShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.comp.glsl");
 	VkShaderModule computeShader = Shader::Compiler::LoadShader(deviceInfo.Handle, computeShaderPath);
 
-	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.vert.glsl"));
-	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.frag.glsl"));
-	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.comp.glsl"));
+	ShaderManager.AddShader(vertexShaderPath);
+	ShaderManager.AddShader(fragmentShaderPath);
+	ShaderManager.AddShader(computeShaderPath);
 #pragma endregion
 
 	// TODO: Storage & Uniform buffers.
@@ -393,13 +393,13 @@ int main(int argc, char* argv[])
 	VulkanUtils::Descriptor::WriteImageSet(deviceInfo.Handle, guiDescriptorSet, &guiFontAttachment.DescriptorImageInfo);
 
 	// Shaders.
-	std::string guiVertexShaderPath = CoreFilesystem.GetAbsolutePath("ui.vert.glsl.spv");
+	std::string guiVertexShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/ui.vert.glsl");
 	VkShaderModule guiVertexShader = Shader::Compiler::LoadShader(deviceInfo.Handle, guiVertexShaderPath);
-	std::string guiFragmentShaderPath = CoreFilesystem.GetAbsolutePath("ui.frag.glsl.spv");
+	std::string guiFragmentShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/ui.frag.glsl");
 	VkShaderModule guiFragmentShader = Shader::Compiler::LoadShader(deviceInfo.Handle, guiFragmentShaderPath);
 
-	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/ui.vert.glsl"));
-	ShaderManager.AddShader(CoreFilesystem.GetAbsolutePath("../../src/Shaders/ui.frag.glsl"));
+	ShaderManager.AddShader(guiVertexShaderPath);
+	ShaderManager.AddShader(guiFragmentShaderPath);
 
 	// Pipeline.
 	auto pushConstantRangeInitializer = VulkanInitializers::PushConstantRange(VK_SHADER_STAGE_VERTEX_BIT,

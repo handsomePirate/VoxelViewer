@@ -23,6 +23,11 @@ VkShaderModule Shader::Compiler::LoadShader(VkDevice device, const std::string& 
 		auto filename = fsPath.filename();
 		std::vector<char> shaderData;
 		size_t size = CoreFilesystem.GetFileSize(path);
+		if (size == 0)
+		{
+			return VK_NULL_HANDLE;
+		}
+
 		shaderData.resize(size / sizeof(char));
 		CoreFilesystem.ReadFile(path, shaderData.data(), size);
 

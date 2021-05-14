@@ -509,7 +509,7 @@ size_t Core::Filesystem::GetFileSize(const std::string& path) const
 
     if (!f)
     {
-        CoreLogError("Failed to open file (%s).", path);
+        CoreLogError("Failed to open file (%s).", path.c_str());
         return 0;
     }
 
@@ -526,7 +526,7 @@ void Core::Filesystem::ReadFile(const std::string& path, void* data, size_t size
 
     if (!f)
     {
-        CoreLogError("Failed to open file (%s).", path);
+        CoreLogError("Failed to open file (%s).", path.c_str());
         return;
     }
 

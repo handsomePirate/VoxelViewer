@@ -10,34 +10,34 @@ group ""
 -- This takes care of shader compilation for Visual Studio, for other systems (aside from gmake2) a different
 -- compilation pipeline must be devised.
 -- Solution found here: https://stackoverflow.com/questions/39072485/compiling-glsl-to-spir-v-using-premake-5-and-visual-studio-2015
-rule "GLSLShaderCompilationRule"
-	display "GLSL Shader Compiler"
-	fileextension ".glsl"
-
-	propertydefinition {
-	  name = "Configuration",
-	  display = "Configuration",
-	  values = {
-	    [0] = "Debug",
-	    [1] = "Release",
-	  },
-	  switch = {
-	    [0] = "Debug",
-	    [1] = "Release",
-	  },
-	  value = 1,
-	}
-
-	buildmessage 'Compiling shader...'
-	buildcommands {
-		'@echo off & "$(VULKAN_SDK)\\Bin\\glslangValidator.exe" -V "%{file.directory}%{file.name}" -o "%{file.directory}..\\..\\build\\[Configuration]\\%{file.name}.spv"'
-	}
-	buildoutputs {
-		"shadersareneverdone"
-	}
+--rule "GLSLShaderCompilationRule"
+--	display "GLSL Shader Compiler"
+--	fileextension ".glsl"
+--
+--	propertydefinition {
+--	  name = "Configuration",
+--	  display = "Configuration",
+--	  values = {
+--	    [0] = "Debug",
+--	    [1] = "Release",
+--	  },
+--	  switch = {
+--	    [0] = "Debug",
+--	    [1] = "Release",
+--	  },
+--	  value = 1,
+--	}
+--
+--	buildmessage 'Compiling shader...'
+--	buildcommands {
+--		'@echo off & "$(VULKAN_SDK)\\Bin\\glslangValidator.exe" -V "%{file.directory}%{file.name}" -o "%{file.directory}..\\..\\build\\[Configuration]\\%{file.name}.spv"'
+--	}
+--	buildoutputs {
+--		"shadersareneverdone"
+--	}
 
 project "VoxelViewer"
-	rules { "GLSLShaderCompilationRule" }
+	--rules { "GLSLShaderCompilationRule" }
 	kind "ConsoleApp"
 	language "C++"
 	location "proj"
@@ -63,9 +63,9 @@ project "VoxelViewer"
 	filter "configurations:Debug"
 		defines { "DEBUG" }
 		symbols "On"
-		GLSLShaderCompilationRuleVars {
-			Configuration = "Debug"
-		}
+		--GLSLShaderCompilationRuleVars {
+		--	Configuration = "Debug"
+		--}
 	
 	filter "configurations:Release"
 		defines { "RELEASE" }
