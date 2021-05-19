@@ -59,8 +59,7 @@ struct EventLogger
 int main(int argc, char* argv[])
 {
 #pragma region Program options
-	const bool enableVulkanDebug = true;
-	const bool useSwapchain = true;
+	const bool enableVulkanDebug = false;
 #pragma endregion
 
 #pragma region Singleton initialization
@@ -130,10 +129,7 @@ int main(int argc, char* argv[])
 #pragma region Device features and extensions
 	VkPhysicalDeviceFeatures requestedFeatures{};
 	std::vector<const char*> deviceExtensions;
-	if (useSwapchain)
-	{
-		deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-	}
+	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 #pragma endregion
 
 #pragma region Device
@@ -657,11 +653,9 @@ int main(int argc, char* argv[])
 				}
 			}
 
-			for (int i = 0; i < (int)drawCommandBuffers.size(); ++i)
-			{
-				commandBufferBuildData.Framebuffer = framebuffers[i];
-				VulkanFactory::CommandBuffer::BuildDraw(drawCommandBuffers[i], commandBufferBuildData, guiCommandBufferBuildData);
-			}
+			commandBufferBuildData.Framebuffer = framebuffers[currentImageIndex];
+			VulkanFactory::CommandBuffer::BuildDraw(drawCommandBuffers[currentImageIndex],
+				commandBufferBuildData, guiCommandBufferBuildData);
 		}
 	}
 	vkDeviceWaitIdle(deviceInfo.Handle);

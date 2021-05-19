@@ -84,8 +84,10 @@ void ImGuiLogger::Draw(const char* title, bool* open)
     const char* buffer = Buffer.begin();
     const char* bufferEnd = Buffer.end();
     
+#ifdef IMGUI_LOGGER_USE_COLORS
     const int maxMessageSize = 2048;
     char message[maxMessageSize];
+#endif
 
     if (Filter.IsActive())
     {
