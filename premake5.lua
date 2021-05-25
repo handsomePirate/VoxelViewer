@@ -39,16 +39,26 @@ group ""
 project "VoxelViewer"
 	--rules { "GLSLShaderCompilationRule" }
 	kind "ConsoleApp"
+	staticruntime "off"
 	language "C++"
+	cppdialect "C++17"
 	location "proj"
 	targetdir "./build/%{cfg.buildcfg}"
 	objdir "proj/obj/%{cfg.buildcfg}"
 	files { "src/**.hpp", "src/**.cpp", "src/**.glsl" }
+
+	linkoptions { '/NODEFAULTLIB:"openvdb"' }
+
+	flags {
+		"MultiProcessorCompile"
+	}
+
 	includedirs { 
 		"src",
 		"$(VULKAN_SDK)/include",
 		"ext/imGui"
 	}
+
 	links {
 		"$(VULKAN_SDK)/lib/vulkan-1.lib",
 		"$(VULKAN_SDK)/lib/shaderc_shared.lib",
@@ -56,9 +66,8 @@ project "VoxelViewer"
 	}
 
 	filter "system:windows"
-		cppdialect "C++17"
-		staticruntime "On"
 		systemversion "latest"
+	filter{}
 	
 	filter "configurations:Debug"
 		defines { "DEBUG" }
@@ -66,7 +75,9 @@ project "VoxelViewer"
 		--GLSLShaderCompilationRuleVars {
 		--	Configuration = "Debug"
 		--}
-	
+
 	filter "configurations:Release"
 		defines { "RELEASE" }
 		optimize "On"
+
+	filter {}
