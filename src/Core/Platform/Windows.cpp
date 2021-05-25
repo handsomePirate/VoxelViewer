@@ -347,7 +347,8 @@ std::string GetErrorMessage(DWORD dwErrorCode)
         // in case String's c'tor throws an exception.
         const size_t maxMessageLength = 2048;
         char charMessage[maxMessageLength];
-        int length = wcstombs(charMessage, psz, maxMessageLength);
+        size_t length;
+        auto error = wcstombs_s(&length, charMessage, psz, maxMessageLength);
         return std::string(charMessage);
     }
 
