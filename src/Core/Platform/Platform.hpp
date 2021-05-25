@@ -61,6 +61,9 @@ namespace Core
 
 		static const char* GetVulkanSurfacePlatformExtension();
 
+		uint64_t LoadDynamicLibrary(const std::string& path);
+		void UnloadDynamicLibrary(uint64_t handle);
+
 		void Quit();
 
 	private:

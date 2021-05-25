@@ -329,6 +329,60 @@ const char* Core::Platform::GetVulkanSurfacePlatformExtension()
     return extensionName;
 }
 
+std::string GetErrorMessage(DWORD dwErrorCode)
+{
+    LPTSTR psz = NULL;
+    const DWORD cchMsg = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM
+        | FORMAT_MESSAGE_IGNORE_INSERTS
+        | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+        NULL, // (not used with FORMAT_MESSAGE_FROM_SYSTEM)
+        dwErrorCode,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<LPTSTR>(&psz),
+        0,
+        NULL);
+    if (cchMsg > 0)
+    {
+        // Assign buffer to smart pointer with custom deleter so that memory gets released
+        // in case String's c'tor throws an exception.
+        const size_t maxMessageLength = 2048;
+        char charMessage[maxMessageLength];
+        int length = wcstombs(charMessage, psz, maxMessageLength);
+        return std::string(charMessage);
+    }
+
+    CoreLogInfo("Failed to get info on the error.");
+    return "";
+}
+
+uint64_t Core::Platform::LoadDynamicLibrary(const std::string& path)
+{
+    uint64_t handle = (uint64_t)LoadLibraryA(path.c_str());
+    std::string filename = CoreFilesystem.Filename(path);
+
+    if (handle == NULL)
+    {
+        CoreLogError("Failed to load library %s.", filename.c_str());
+        auto error = GetLastError();
+        auto errorMessage = GetErrorMessage(error);
+        if (errorMessage != "")
+        {
+            CoreLogInfo("Library load fail info: %s", errorMessage.c_str());
+        }
+    }
+    else
+    {
+        CoreLogInfo("Successfully loaded library %s.", filename.c_str());
+    }
+
+    return handle;
+}
+
+void Core::Platform::UnloadDynamicLibrary(uint64_t handle)
+{
+    FreeLibrary((HINSTANCE)handle);
+}
+
 void Core::Platform::Quit()
 {
     CoreEventSystem.SignalEvent(Core::EventCode::ApplicationQuit, {});
