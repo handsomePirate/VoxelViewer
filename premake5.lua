@@ -68,7 +68,7 @@ project "VoxelViewer"
 		"$(VULKAN_SDK)/lib/vulkan-1.lib",
 		"$(VULKAN_SDK)/lib/shaderc_shared.lib",
 		"ext/imgui/bin/%{cfg.buildcfg}/ImGui.lib",
-		"ext/openvdb/bin/%{cfg.buildcfg}/openvdb.lib"
+		"ext/openvdb/lib/%{cfg.buildcfg}/openvdb.lib"
 	}
 
 	filter "system:windows"
@@ -79,8 +79,8 @@ project "VoxelViewer"
 		defines { "DEBUG" }
 		symbols "On"
 		links {
-			"ext/openvdb/ext/tbb/bin/%{cfg.buildcfg}/tbb_debug.lib",
-			"ext/openvdb/ext/tbb/bin/%{cfg.buildcfg}/tbbmalloc_debug.lib"
+			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbb_debug.lib",
+			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbbmalloc_debug.lib"
 		}
 		--GLSLShaderCompilationRuleVars {
 		--	Configuration = "Debug"
@@ -90,8 +90,8 @@ project "VoxelViewer"
 		defines { "RELEASE" }
 		optimize "On"
 		links {
-			"ext/openvdb/ext/tbb/bin/%{cfg.buildcfg}/tbb.lib",
-			"ext/openvdb/ext/tbb/bin/%{cfg.buildcfg}/tbbmalloc.lib"
+			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbb.lib",
+			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbbmalloc.lib"
 		}
 
 	filter {}
