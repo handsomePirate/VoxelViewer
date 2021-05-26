@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Common.hpp"
 #include "BoundingBox.hpp"
+#include "Vulkan/VulkanFactory.hpp"
 #include <Eigen/Dense>
 #include <ostream>
 
@@ -47,6 +48,26 @@ struct HTStats
 
 // TODO: We are only interested in color modifications, the infrastructure could be simplified when colors are in place.
 
+struct HashDAGPushConstants
+{
+	uint32_t PageSize = HTConstants::PAGE_SIZE;
+	uint32_t BucketCount = HTConstants::TOTAL_BUCKET_COUNT;
+};
+
+struct HashDAGUniformData
+{
+	uint32_t PageCount;
+	uint32_t TreeCount;
+};
+
+struct HashDAGGPUInfo
+{
+	VulkanFactory::Buffer::BufferInfo PagesStorageBuffer;
+	VulkanFactory::Buffer::BufferInfo BucketSizesStorageBuffer;
+	VulkanFactory::Buffer::BufferInfo TreeRootsStorageBuffer;
+	VulkanFactory::Buffer::BufferInfo UniformBuffer;
+};
+
 class HashTable
 {
 public:
@@ -91,6 +112,9 @@ public:
 
 	/// Returns some useful statistics.
 	HTStats GetStats() const;
+
+	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
+		VkQueue queue, HashDAGGPUInfo& uploadInfo, HashDAGUniformData& uniformData);
 
 private:
 	/// Allocates a page from the pre-allocated page pool.
@@ -190,6 +214,9 @@ public:
 	/// voxel will contain the position of the voxel that has been hit first on the path of the ray.
 	bool CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& direction, Eigen::Vector3i& voxel,
 		const Eigen::Vector3f& perturbationEpsilon = { 1e-5f, 1e-5f, 1e-5f }) const;
+
+	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
+		VkQueue queue, HashDAGGPUInfo& uploadInfo);
 
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).
