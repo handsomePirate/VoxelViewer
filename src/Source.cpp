@@ -675,9 +675,12 @@ int main(int argc, char* argv[])
 				}
 			}
 
-			commandBufferBuildData.Framebuffer = framebuffers[currentImageIndex];
-			VulkanFactory::CommandBuffer::BuildDraw(drawCommandBuffers[currentImageIndex],
-				commandBufferBuildData, guiCommandBufferBuildData);
+			for (int f = 0; f < framebuffers.size(); ++f)
+			{
+				commandBufferBuildData.Framebuffer = framebuffers[f];
+				VulkanFactory::CommandBuffer::BuildDraw(drawCommandBuffers[f],
+					commandBufferBuildData, guiCommandBufferBuildData);
+			}
 		}
 	}
 	vkDeviceWaitIdle(deviceInfo.Handle);

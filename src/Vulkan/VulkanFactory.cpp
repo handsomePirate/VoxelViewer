@@ -279,6 +279,7 @@ void VulkanFactory::Buffer::Create(const char* name, const Device::DeviceInfo& d
 
 	output.Memory = VulkanUtils::Memory::AllocateBuffer(deviceInfo.Handle, deviceInfo.MemoryProperties,
 		output.DescriptorBufferInfo.buffer, memoryProperties);
+	Debug::Utils::SetDeviceMemoryName(deviceInfo.Handle, output.Memory, "Buffer Memory");
 
 	result = vkBindBufferMemory(deviceInfo.Handle, output.DescriptorBufferInfo.buffer, output.Memory,
 		output.DescriptorBufferInfo.offset);
@@ -394,6 +395,7 @@ void VulkanFactory::Image::Create(const char* name, const Device::DeviceInfo& de
 
 	output.Memory = VulkanUtils::Memory::AllocateImage(deviceInfo.Handle, deviceInfo.MemoryProperties,
 		output.Image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	Debug::Utils::SetDeviceMemoryName(deviceInfo.Handle, output.Memory, "Depth Stencil Image Memory");
 
 	result = vkBindImageMemory(deviceInfo.Handle, output.Image, output.Memory, 0);
 	assert(result == VK_SUCCESS);
@@ -438,6 +440,7 @@ void VulkanFactory::Image::Create(const char* name, const Device::DeviceInfo& de
 
 	output.Memory = VulkanUtils::Memory::AllocateImage(deviceInfo.Handle, deviceInfo.MemoryProperties,
 		output.Image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	Debug::Utils::SetDeviceMemoryName(deviceInfo.Handle, output.Memory, "Attachment or Target Image Memory");
 
 	result = vkBindImageMemory(deviceInfo.Handle, output.Image, output.Memory, 0);
 	assert(result == VK_SUCCESS);
