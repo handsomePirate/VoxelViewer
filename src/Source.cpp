@@ -11,6 +11,9 @@
 #include "ImGui/ImGui.hpp"
 #include "Vulkan/ShaderCompiler.hpp"
 #include "Vulkan/ShaderManager.hpp"
+#include "HashDAG/OpenVDBUtils.hpp"
+#include "HashDAG/HashDAG.hpp"
+#include "HashDAG/Converter.hpp"
 #include <imgui.h>
 #include <vector>
 #include <string>
@@ -59,14 +62,14 @@ struct EventLogger
 int main(int argc, char* argv[])
 {
 #pragma region Program options
-	const bool enableVulkanDebug = false;
+	const bool enableVulkanDebug = true;
 #pragma endregion
 
 #pragma region Singleton initialization
 	volatile auto input = CoreInput;
 	CoreLogger.SetTypes(Core::LoggerType::Both);
 #pragma endregion
-
+	
 	//=========================== Testing event logging ==============================
 
 #pragma region Event handling subscriptions
@@ -234,6 +237,27 @@ int main(int argc, char* argv[])
 	}
 #pragma endregion
 
+	//=========================== Setting up OpenVDB =================================
+
+#pragma region OpenVDB init, grid loading, transformation to HashDAG
+	openvdb::initialize();
+	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/example_task_0_solution.vdb");
+	auto grid = OpenVDBUtils::LoadGrid(gridFile);
+	auto hdStart = std::chrono::high_resolution_clock::now();
+	HashDAG hd{};
+	//Converter::OpenVDBToDAG(grid, hd);
+	auto hdEnd = std::chrono::high_resolution_clock::now();
+	auto msCount = std::chrono::duration_cast<std::chrono::milliseconds>(hdEnd - hdStart).count();
+	CoreLogInfo("Hash DAG created in %lld ms, (0, 0, 0) is %s", msCount, hd.IsActive({ 0, 0, 0 }) ? "active" : "not active");
+
+	HashDAGGPUInfo uploadInfo;
+	auto uploadStart = std::chrono::high_resolution_clock::now();
+	//hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo);
+	auto uploadEnd = std::chrono::high_resolution_clock::now();
+	msCount = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEnd - uploadStart).count();
+	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
+#pragma endregion
+
 	//=========================== Shaders and rendering structures ===================
 
 #pragma region Shaders
@@ -248,8 +272,6 @@ int main(int argc, char* argv[])
 	ShaderManager.AddShader(fragmentShaderPath);
 	ShaderManager.AddShader(computeShaderPath);
 #pragma endregion
-
-	// TODO: Storage & Uniform buffers.
 
 #pragma region Texture target
 	const int targetWidth = 2048;
@@ -701,6 +723,11 @@ int main(int argc, char* argv[])
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, computeShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
+
+	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.UniformBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.TreeRootsStorageBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.BucketSizesStorageBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PagesStorageBuffer);
 
 	for (auto& framebuffer : framebuffers)
 	{
