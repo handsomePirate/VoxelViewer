@@ -43,6 +43,7 @@ project "VoxelViewer"
 	language "C++"
 	cppdialect "C++17"
 	location "proj"
+	callingconvention "FastCall"
 	targetdir "./build/%{cfg.buildcfg}"
 	objdir "proj/obj/%{cfg.buildcfg}"
 	files { "src/**.hpp", "src/**.cpp", "src/**.glsl" }
