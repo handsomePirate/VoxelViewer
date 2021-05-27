@@ -51,7 +51,6 @@ struct HTStats
 struct HashDAGPushConstants
 {
 	uint32_t PageSize = HTConstants::PAGE_SIZE;
-	uint32_t BucketCount = HTConstants::TOTAL_BUCKET_COUNT;
 };
 
 struct HashDAGUniformData
@@ -63,7 +62,7 @@ struct HashDAGUniformData
 struct HashDAGGPUInfo
 {
 	VulkanFactory::Buffer::BufferInfo PagesStorageBuffer;
-	VulkanFactory::Buffer::BufferInfo BucketSizesStorageBuffer;
+	VulkanFactory::Buffer::BufferInfo PageTableStorageBuffer;
 	VulkanFactory::Buffer::BufferInfo TreeRootsStorageBuffer;
 	VulkanFactory::Buffer::BufferInfo UniformBuffer;
 };

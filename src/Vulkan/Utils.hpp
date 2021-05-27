@@ -83,7 +83,8 @@ namespace VulkanUtils
 	class Buffer
 	{
 	public:
-		static void Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, void* source);
+		static void Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize size,
+			void* source, VkDeviceSize destinationOffset = 0);
 		static void Copy(VkDevice device, VkBuffer source, VkBuffer destination, VkDeviceSize size,
 			VkCommandPool commandPool, VkQueue queue, VkDeviceSize sourceOffset = 0, VkDeviceSize destinationOffset = 0);
 	};
@@ -92,8 +93,10 @@ namespace VulkanUtils
 	public:
 		static void WriteImageSet(VkDevice device, VkDescriptorSet descriptorSet,
 			VkDescriptorImageInfo* imageInfo);
-		static void WriteComputeSet(VkDevice device, VkDescriptorSet descriptorSet, VkDescriptorImageInfo* renderTargetInfo/*,
-			VkDescriptorBufferInfo* storageBufferInfo*/);
+		static void WriteComputeSet(VkDevice device, VkDescriptorSet descriptorSet,
+			VkDescriptorImageInfo* imageDescriptors, uint32_t imageDescriptorCount,
+			VkDescriptorBufferInfo* storageBufferDescriptors, uint32_t storageBufferDescriptorCount,
+			VkDescriptorBufferInfo* uniformBufferDescriptors, uint32_t uniformBufferDescriptorCount);
 	};
 	class Memory
 	{

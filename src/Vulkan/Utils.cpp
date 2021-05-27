@@ -579,9 +579,10 @@ void VulkanUtils::Image::Copy(VkDevice device, VkBuffer source, VkImage destinat
 	VulkanFactory::CommandBuffer::Free(device, commandPool, commandBuffer);
 }
 
-void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, void* source)
+void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize size,
+	void* source, VkDeviceSize destinationOffset)
 {
-	void* destination = Memory::Map(device, memory, offset, size);
+	void* destination = Memory::Map(device, memory, destinationOffset, size);
 	memcpy(destination, source, size);
 	Memory::Unmap(device, memory);
 }
@@ -612,16 +613,38 @@ void VulkanUtils::Descriptor::WriteImageSet(VkDevice device, VkDescriptorSet des
 }
 
 void VulkanUtils::Descriptor::WriteComputeSet(VkDevice device, VkDescriptorSet descriptorSet,
-	VkDescriptorImageInfo* renderTargetInfo/*, VkDescriptorBufferInfo* storageBufferInfo*/)
+	VkDescriptorImageInfo* imageDescriptors, uint32_t imageDescriptorCount,
+	VkDescriptorBufferInfo* storageBufferDescriptors, uint32_t storageBufferDescriptorCount,
+	VkDescriptorBufferInfo* uniformBufferDescriptors, uint32_t uniformBufferDescriptorCount)
 {
-	const int setCount = 1;
-	VkWriteDescriptorSet writeDescriptorSets[setCount] =
+	const bool hasImages = imageDescriptorCount > 0;
+	const bool hasStorageBuffers = storageBufferDescriptorCount > 0;
+	const bool hasUniformBuffers = uniformBufferDescriptorCount > 0;
+	const int setCount = (hasImages ? 1 : 0) + (hasStorageBuffers ? 1 : 0) + (hasUniformBuffers ? 1 : 0);
+	std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+	if (hasImages)
 	{
-		VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, renderTargetInfo),
-		//VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, storageBufferInfo),
-	};
+		writeDescriptorSets.push_back(
+			VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+				0,
+				imageDescriptors, imageDescriptorCount));
+	}
+	if (hasStorageBuffers)
+	{
+		writeDescriptorSets.push_back(
+			VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				imageDescriptorCount,
+				storageBufferDescriptors, storageBufferDescriptorCount));
+	}
+	if (hasUniformBuffers)
+	{
+		writeDescriptorSets.push_back(
+			VulkanInitializers::WriteDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				imageDescriptorCount + storageBufferDescriptorCount,
+				uniformBufferDescriptors, uniformBufferDescriptorCount));
+	}
 
-	vkUpdateDescriptorSets(device, setCount, writeDescriptorSets, 0, nullptr);
+	vkUpdateDescriptorSets(device, setCount, writeDescriptorSets.data(), 0, nullptr);
 }
 
 uint32_t VulkanUtils::Memory::GetTypeIndex(VkPhysicalDeviceMemoryProperties memoryProperties,
@@ -678,7 +701,9 @@ void* VulkanUtils::Memory::Map(VkDevice device, VkDeviceMemory memory, VkDeviceS
 	VkMemoryMapFlags flags)
 {
 	void* output;
-	vkMapMemory(device, memory, offset, size, flags, &output);
+	VkResult result = vkMapMemory(device, memory, offset, size, flags, &output);
+	assert(result == VK_SUCCESS);
+
 	return output;
 }
 

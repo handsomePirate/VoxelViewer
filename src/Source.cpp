@@ -245,14 +245,14 @@ int main(int argc, char* argv[])
 	auto grid = OpenVDBUtils::LoadGrid(gridFile);
 	auto hdStart = std::chrono::high_resolution_clock::now();
 	HashDAG hd{};
-	//Converter::OpenVDBToDAG(grid, hd);
+	Converter::OpenVDBToDAG(grid, hd);
 	auto hdEnd = std::chrono::high_resolution_clock::now();
 	auto msCount = std::chrono::duration_cast<std::chrono::milliseconds>(hdEnd - hdStart).count();
 	CoreLogInfo("Hash DAG created in %lld ms, (0, 0, 0) is %s", msCount, hd.IsActive({ 0, 0, 0 }) ? "active" : "not active");
 
 	HashDAGGPUInfo uploadInfo;
 	auto uploadStart = std::chrono::high_resolution_clock::now();
-	//hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo);
+	hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo);
 	auto uploadEnd = std::chrono::high_resolution_clock::now();
 	msCount = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEnd - uploadStart).count();
 	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
@@ -291,7 +291,8 @@ int main(int argc, char* argv[])
 	{
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
-		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),
+		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3),
+		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
 	};
 	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool("Compute and Display Descriptor Pool",
 		deviceInfo.Handle, descriptorPoolSizes.data(), (uint32_t)descriptorPoolSizes.size(), 3);
@@ -310,8 +311,14 @@ int main(int argc, char* argv[])
 	{
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0),
-		//VulkanInitializers::DescriptorSetLayoutBinding(
-		//	VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
 	};
 	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
 		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
@@ -319,7 +326,17 @@ int main(int argc, char* argv[])
 	VkDescriptorSet computeSet = VulkanFactory::Descriptor::AllocateSet(deviceInfo.Handle, descriptorPool,
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
-	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, &renderTarget.DescriptorImageInfo/*, storageBufferInfo*/);
+
+	VkDescriptorBufferInfo storageBuffersDescriptorInfo[3] =
+	{
+		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo,
+		uploadInfo.PagesStorageBuffer.DescriptorBufferInfo,
+		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo
+	};
+	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
+		&renderTarget.DescriptorImageInfo, 1,
+		storageBuffersDescriptorInfo, 3,
+		&uploadInfo.UniformBuffer.DescriptorBufferInfo, 1);
 #pragma endregion
 
 #pragma region Pipelines
@@ -367,7 +384,7 @@ int main(int argc, char* argv[])
 	VulkanFactory::Buffer::Create("GUI Font Image Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, uploadSize,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBufferInfo);
 	
-	VulkanUtils::Buffer::Copy(deviceInfo.Handle, stagingBufferInfo.Memory, 0, uploadSize, fontData);
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, stagingBufferInfo.Memory, uploadSize, fontData);
 
 	auto guiSubresourceRangeInitializer = VulkanInitializers::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
 
@@ -729,8 +746,8 @@ int main(int argc, char* argv[])
 
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.UniformBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.TreeRootsStorageBuffer);
-	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.BucketSizesStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PagesStorageBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PageTableStorageBuffer);
 
 	for (auto& framebuffer : framebuffers)
 	{
