@@ -29,14 +29,20 @@ layout(std140, binding = 3) buffer TreeRoots
 	TreeRoot treeRoots[];
 };
 
-layout(binding = 4) uniform TreesData
+layout(binding = 4) uniform Camera 
 {
+	vec3 position;
+	vec3 forward;
+	vec3 right;
+	vec3 up;
+	float fov;
+} camera;
+
+layout(push_constant) uniform PushConstants
+{
+	uint pageSize;
 	uint pageCount;
 	uint treeCount;
-} treesData;
-
-layout(push_constant) uniform PushConstants{
-	uint pageSize;
 } pushConstants;
 
 uint PageTableElement(uint e)
@@ -62,7 +68,8 @@ void main()
 	float blue = gl_GlobalInvocationID.y / 2048.f;
 	
 	const int pointerIndex = 4;
-	vec4 testColor = (PagePoolElement(Translate(treeRoots[0].rootNode)) != 0) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
+	//vec4 testColor = (pushConstants.treeCount/*PagePoolElement(Translate(treeRoots[0].rootNode))*/ == 8) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
+	vec4 testColor = vec4(abs(vec3(camera.fov)), 1);
 	//imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(vec3(blue, 0.f, green), 1.f));
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), testColor);
 }

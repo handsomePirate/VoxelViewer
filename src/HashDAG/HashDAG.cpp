@@ -276,7 +276,7 @@ HTStats HashTable::GetStats() const
 }
 
 void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
-	VkQueue queue, HashDAGGPUInfo& uploadInfo, HashDAGUniformData& uniformData)
+	VkQueue queue, HashDAGGPUInfo& uploadInfo)
 {
 	VkDeviceSize pageTableBufferSize = HTConstants::TOTAL_PAGE_COUNT * sizeof(uint32_t);
 
@@ -289,7 +289,6 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::Create("Voxel Page Table Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, pageTableBufferSize,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, pageTableStagingBufferInfo);
 
-	pageTable_[4] = 65;
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, pageTableStagingBufferInfo.Memory, pageTableBufferSize, pageTable_);
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, pageTableStagingBufferInfo.DescriptorBufferInfo.buffer,
 		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo.buffer, pageTableBufferSize, commandPool, queue);
@@ -354,7 +353,7 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 
 	// TODO: Think about uniforms/push constants for the rest of the data.
 	// -Page count - uniform
-	uniformData.PageCount = poolTop_;
+	uploadInfo.PageCount = poolTop_;
 
 	// TODO: Destroy staging buffers.
 	VulkanFactory::Buffer::Destroy(deviceInfo, pagesStagingBufferInfo);
@@ -936,8 +935,7 @@ uint8_t HashDAG::GetSecondLeafMask(uint64_t leaf, uint8_t firstMask) const
 void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 	VkQueue queue, HashDAGGPUInfo& uploadInfo)
 {
-	HashDAGUniformData uniformData{};
-	ht_.UploadToGPU(deviceInfo, commandPool, queue, uploadInfo, uniformData);
+	ht_.UploadToGPU(deviceInfo, commandPool, queue, uploadInfo);
 
 	VkDeviceSize treesBufferSize = (uint32_t)trees_.size() * sizeof(HashTree);
 
@@ -954,11 +952,7 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, treesStagingBufferInfo.DescriptorBufferInfo.buffer,
 		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo.buffer, treesBufferSize, commandPool, queue);
 
-	VkDeviceSize uniformBufferSize = sizeof(HashDAGUniformData);
-	VulkanFactory::Buffer::Create("Voxel Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, uniformBufferSize,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uploadInfo.UniformBuffer);
-	uniformData.TreeCount = (uint32_t)trees_.size();
-	VulkanUtils::Buffer::Copy(deviceInfo.Handle, uploadInfo.UniformBuffer.Memory, uniformBufferSize, &uniformData);
+	uploadInfo.TreeCount = (uint32_t)trees_.size();
 
 	VulkanFactory::Buffer::Destroy(deviceInfo, treesStagingBufferInfo);
 }

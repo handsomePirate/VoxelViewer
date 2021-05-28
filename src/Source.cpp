@@ -327,6 +327,12 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
+	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 75.f / 180.f * PI_CONST);
+	VulkanFactory::Buffer::BufferInfo cameraUniformBuffer;
+	VulkanFactory::Buffer::Create("Camera Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(Camera),
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, cameraUniformBuffer);
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory, sizeof(Camera), &camera);
+
 	VkDescriptorBufferInfo storageBuffersDescriptorInfo[3] =
 	{
 		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo,
@@ -336,7 +342,7 @@ int main(int argc, char* argv[])
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
 		&renderTarget.DescriptorImageInfo, 1,
 		storageBuffersDescriptorInfo, 3,
-		&uploadInfo.UniformBuffer.DescriptorBufferInfo, 1);
+		&cameraUniformBuffer.DescriptorBufferInfo, 1);
 #pragma endregion
 
 #pragma region Pipelines
@@ -361,7 +367,8 @@ int main(int argc, char* argv[])
 	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, 0);
 	HashDAGPushConstants computePushConstants{};
-	computePushConstants.PageSize = HTConstants::PAGE_SIZE;
+	computePushConstants.PageCount = uploadInfo.PageCount;
+	computePushConstants.TreeCount = uploadInfo.TreeCount;
 	vkCmdPushConstants(computeCommandBuffer, computePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
 		sizeof(HashDAGPushConstants), &computePushConstants);
 
@@ -740,6 +747,8 @@ int main(int argc, char* argv[])
 	VulkanFactory::Pipeline::DestroyLayout(deviceInfo.Handle, computePipelineLayout);
 	VulkanFactory::Pipeline::DestroyLayout(deviceInfo.Handle, graphicsPipelineLayout);
 
+	VulkanFactory::Buffer::Destroy(deviceInfo, cameraUniformBuffer);
+
 	VulkanFactory::Descriptor::DestroySetLayout(deviceInfo.Handle, computeSetLayout);
 	VulkanFactory::Descriptor::DestroySetLayout(deviceInfo.Handle, rasterizationSetLayout);
 	VulkanFactory::Descriptor::DestroyPool(deviceInfo.Handle, descriptorPool);
@@ -750,7 +759,6 @@ int main(int argc, char* argv[])
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
 
-	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.UniformBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.TreeRootsStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PagesStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PageTableStorageBuffer);

@@ -2,6 +2,7 @@
 #include "Core/Common.hpp"
 #include "BoundingBox.hpp"
 #include "Vulkan/VulkanFactory.hpp"
+#include "Vulkan/Camera.hpp"
 #include <Eigen/Dense>
 #include <ostream>
 
@@ -51,10 +52,6 @@ struct HTStats
 struct HashDAGPushConstants
 {
 	uint32_t PageSize = HTConstants::PAGE_SIZE;
-};
-
-struct HashDAGUniformData
-{
 	uint32_t PageCount;
 	uint32_t TreeCount;
 };
@@ -64,7 +61,8 @@ struct HashDAGGPUInfo
 	VulkanFactory::Buffer::BufferInfo PagesStorageBuffer;
 	VulkanFactory::Buffer::BufferInfo PageTableStorageBuffer;
 	VulkanFactory::Buffer::BufferInfo TreeRootsStorageBuffer;
-	VulkanFactory::Buffer::BufferInfo UniformBuffer;
+	uint32_t PageCount;
+	uint32_t TreeCount;
 };
 
 class HashTable
@@ -113,7 +111,7 @@ public:
 	HTStats GetStats() const;
 
 	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
-		VkQueue queue, HashDAGGPUInfo& uploadInfo, HashDAGUniformData& uniformData);
+		VkQueue queue, HashDAGGPUInfo& uploadInfo);
 
 private:
 	/// Allocates a page from the pre-allocated page pool.
