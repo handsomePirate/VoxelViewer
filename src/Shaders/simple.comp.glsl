@@ -6,20 +6,22 @@ layout(binding = 0, rgba8) uniform writeonly image2D resultImage;
 
 layout(std140, binding = 1) buffer PageTable
 {
-	uint pointers[];
+	// The individual data entries need to be aligned by vec4, ivec4 or uvec4 as required by std140.
+	// Other alignment options are not available for arrays (as far as I know).
+	// Individual array elements should be querried as follows: pointers[i / 4][i % 4].
+	uvec4 pointers[];
 };
 
 layout(std140, binding = 2) buffer Pages
 {
-	uint entries[];
+	uvec4 entries[];
 };
 
 struct TreeRoot
 {
+	// The order matters here, because of alignment.
+	ivec3 rootOffset;
 	uint rootNode;
-	int rootOffsetX;
-	int rootOffsetY;
-	int rootOffsetZ;
 };
 
 layout(std140, binding = 3) buffer TreeRoots
@@ -33,23 +35,30 @@ layout(binding = 4) uniform TreesData
 	uint treeCount;
 } treesData;
 
+uint PageTableElement(uint e)
+{
+	return pointers[e / 4][e % 4];
+}
+
+uint PagePoolElement(uint e)
+{
+	return entries[e / 4][e % 4];
+}
+
 uint Translate(uint vptr)
 {
 	const uint page = vptr / 512;
 	const uint offset = vptr % 512;
-	return pointers[page] * 512 + offset;
+	return PageTableElement(page) * 512 + offset;
 }
 
 void main()
 {
 	float green = gl_GlobalInvocationID.x / 2048.f;
 	float blue = gl_GlobalInvocationID.y / 2048.f;
-	uint sum = 0;
-	for (int i = 0; i < pointers.length(); ++i)
-	{
-		sum += pointers[i];
-	}
-	vec4 testColor = (sum == 65 * 2) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
+	
+	const int pointerIndex = 4;
+	vec4 testColor = (PagePoolElement(Translate(treeRoots[0].rootNode)) != 0) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
 	//imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(vec3(blue, 0.f, green), 1.f));
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), testColor);
 }

@@ -147,8 +147,8 @@ private:
 
 struct HashTree
 {
-	HashTable::vptr_t rootNode = HTConstants::INVALID_POINTER;
 	Eigen::Vector3i rootOffset;
+	HashTable::vptr_t rootNode = HTConstants::INVALID_POINTER;
 };
 
 /// This class determines the path that a traversal algorithm should take to get to a certain voxel (used in tracing).

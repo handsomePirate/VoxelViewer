@@ -289,6 +289,7 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::Create("Voxel Page Table Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, pageTableBufferSize,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, pageTableStagingBufferInfo);
 
+	pageTable_[4] = 65;
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, pageTableStagingBufferInfo.Memory, pageTableBufferSize, pageTable_);
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, pageTableStagingBufferInfo.DescriptorBufferInfo.buffer,
 		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo.buffer, pageTableBufferSize, commandPool, queue);
@@ -511,7 +512,7 @@ HashTable::vptr_t HashDAG::FindOrAddNode(uint32_t level, uint32_t nodeSize, uint
 
 void HashDAG::AddRoot(HashTable::vptr_t node, const Eigen::Vector3i& offset)
 {
-	trees_.push_back({ node, offset });
+	trees_.push_back({ offset, node });
 }
 
 bool HashDAG::IsActive(const Eigen::Vector3i& voxel) const
