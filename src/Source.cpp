@@ -327,11 +327,12 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 75.f / 180.f * PI_CONST);
+	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 75.f);
+	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
 	VulkanFactory::Buffer::BufferInfo cameraUniformBuffer;
-	VulkanFactory::Buffer::Create("Camera Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(Camera),
+	VulkanFactory::Buffer::Create("Camera Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, cameraUniformBuffer);
-	VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory, sizeof(Camera), &camera);
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory, sizeof(TracingParameters), &tracingParameters);
 
 	VkDescriptorBufferInfo storageBuffersDescriptorInfo[3] =
 	{
