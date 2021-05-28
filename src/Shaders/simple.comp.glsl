@@ -71,7 +71,7 @@ void main()
 	const int pointerIndex = 4;
 	//vec4 testColor = (camera.rayDDx.z > 0) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
 	//vec4 testColor = vec4(abs(camera.rayDDx), 1);
-	vec4 directionColor = vec4(abs(rayDir), 1);
+	vec4 directionColor = vec4(rayDir, 1);
 	//imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(vec3(blue, 0.f, green), 1.f));
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), directionColor);
 }

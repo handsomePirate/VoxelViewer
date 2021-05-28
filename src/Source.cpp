@@ -327,7 +327,7 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 40.f);
+	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 30.f);
 	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
 	VulkanFactory::Buffer::BufferInfo cameraUniformBuffer;
 	VulkanFactory::Buffer::Create("Camera Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
