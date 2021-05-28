@@ -342,8 +342,10 @@ int main(int argc, char* argv[])
 #pragma region Pipelines
 	VkPipelineLayout graphicsPipelineLayout = VulkanFactory::Pipeline::CreateLayout("Display Pipeline Layout",
 		deviceInfo.Handle, rasterizationSetLayout);
+	auto computeConstantRangeInitializer = VulkanInitializers::PushConstantRange(VK_SHADER_STAGE_COMPUTE_BIT,
+		sizeof(HashDAGPushConstants), 0);
 	VkPipelineLayout computePipelineLayout = VulkanFactory::Pipeline::CreateLayout("Trace Pipeline Layout",
-		deviceInfo.Handle, computeSetLayout);
+		deviceInfo.Handle, computeSetLayout, &computeConstantRangeInitializer, 1);
 
 	VkPipelineCache pipelineCache = VulkanFactory::Pipeline::CreateCache("VV General Pipeline Cache", deviceInfo.Handle);
 	
@@ -358,6 +360,10 @@ int main(int argc, char* argv[])
 
 	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, 0);
+	HashDAGPushConstants computePushConstants{};
+	computePushConstants.PageSize = HTConstants::PAGE_SIZE;
+	vkCmdPushConstants(computeCommandBuffer, computePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+		sizeof(HashDAGPushConstants), &computePushConstants);
 
 	vkCmdDispatch(computeCommandBuffer, targetWidth / 16, targetHeight / 16, 1);
 

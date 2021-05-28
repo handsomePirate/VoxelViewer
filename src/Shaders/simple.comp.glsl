@@ -35,6 +35,10 @@ layout(binding = 4) uniform TreesData
 	uint treeCount;
 } treesData;
 
+layout(push_constant) uniform PushConstants{
+	uint pageSize;
+} pushConstants;
+
 uint PageTableElement(uint e)
 {
 	return pointers[e / 4][e % 4];
@@ -47,9 +51,9 @@ uint PagePoolElement(uint e)
 
 uint Translate(uint vptr)
 {
-	const uint page = vptr / 512;
-	const uint offset = vptr % 512;
-	return PageTableElement(page) * 512 + offset;
+	const uint page = vptr / pushConstants.pageSize;
+	const uint offset = vptr % pushConstants.pageSize;
+	return PageTableElement(page) * pushConstants.pageSize + offset;
 }
 
 void main()
