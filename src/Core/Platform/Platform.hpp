@@ -20,6 +20,8 @@ namespace Core
 		uint32_t GetWidth() const;
 		uint32_t GetHeight() const;
 
+		void ClipMousePosition(uint16_t& x, uint16_t& y) const;
+
 	private:
 		friend class Platform;
 		Window();

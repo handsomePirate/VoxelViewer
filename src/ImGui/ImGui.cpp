@@ -89,14 +89,17 @@ void GUI::Renderer::Shutdown()
 
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
-	float width, float height, float renderTimeDelta, float fps)
+	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera)
 {
 	float deltaTimeSeconds = renderTimeDelta * .001f;
 	ImGuiIO& io = ImGui::GetIO();
-	io.DisplaySize = ImVec2(width, height);
+	io.DisplaySize = ImVec2((float)window->GetWidth(), (float)window->GetHeight());
 	io.DeltaTime = deltaTimeSeconds;
 
-	io.MousePos = ImVec2(CoreInput.GetMouseX(), CoreInput.GetMouseY());
+	auto mouseX = CoreInput.GetMouseX();
+	auto mouseY = CoreInput.GetMouseY();
+	window->ClipMousePosition(mouseX, mouseY);
+	io.MousePos = ImVec2((float)mouseX, (float)mouseY);
 	io.MouseDown[0] = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
 	io.MouseDown[1] = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Right);
 	io.MouseDown[2] = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Middle);
@@ -152,6 +155,8 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		ImGui::SameLine();
 		bool consoleLogger = (int)CoreLogger.GetTypes() & (int)Core::LoggerType::Console;
 		ImGui::Checkbox("Console", &consoleLogger);
+
+		ImGui::SliderFloat("fov", &camera.Fov(), Camera::DegToRad(20.f), Camera::DegToRad(100.f));
 
 		Core::LoggerType resultingTypes = (Core::LoggerType)
 			((guiLogger ? (int)Core::LoggerType::ImGui : 0) |

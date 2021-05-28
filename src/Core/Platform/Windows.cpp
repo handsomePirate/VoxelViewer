@@ -134,6 +134,14 @@ uint32_t Core::Window::GetHeight() const
     return rectangle.bottom - rectangle.top;
 }
 
+void Core::Window::ClipMousePosition(uint16_t& x, uint16_t& y) const
+{
+    POINT pos{ LONG(x), LONG(y) };
+    ::ScreenToClient(p_->handle, &pos);
+    x = uint16_t(pos.x);
+    y = uint16_t(pos.y);
+}
+
 Core::Window::Window()
     : p_(new Window::Private)
 {
@@ -426,6 +434,9 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
         uint16_t whichButton = msg & 0x0001 ? 0 /*left*/ : 1 /*right*/;
         Core::EventData eventData;
         eventData.data.u16[0] = whichButton;
+
+        SetCapture(hwnd);
+
         CoreEventSystem.SignalEvent(Core::EventCode::MouseButtonPressed, eventData);
         return TRUE;
     }
@@ -434,6 +445,9 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
         uint16_t whichButton = msg & 0x0001 ? 1 /*left*/ : 0 /*right*/;
         Core::EventData eventData;
         eventData.data.u16[0] = whichButton;
+
+        ReleaseCapture();
+
         CoreEventSystem.SignalEvent(Core::EventCode::MouseButtonReleased, eventData);
         return TRUE;
     }
@@ -442,6 +456,15 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
         Core::EventCode code = msg & 0x0001 ? Core::EventCode::MouseButtonPressed : Core::EventCode::MouseButtonReleased;
         Core::EventData eventData;
         eventData.data.u16[0] = uint16_t(2);
+
+        if (code == Core::EventCode::MouseButtonPressed)
+        {
+            SetCapture(hwnd);
+        }
+        else
+        {
+            ReleaseCapture();
+        }
 
         CoreEventSystem.SignalEvent(code, eventData);
         return TRUE;
@@ -459,7 +482,6 @@ LRESULT CALLBACK ProcessMessage(HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM l
     {
         POINT pos;
         ::GetCursorPos(&pos);
-        ::ScreenToClient(hwnd, &pos);
         Core::EventData eventData;
         eventData.data.i16[0] = (int16_t)pos.x;
         eventData.data.i16[1] = (int16_t)pos.y;

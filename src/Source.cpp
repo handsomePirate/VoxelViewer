@@ -327,7 +327,7 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 75.f);
+	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 40.f);
 	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
 	VulkanFactory::Buffer::BufferInfo cameraUniformBuffer;
 	VulkanFactory::Buffer::Create("Camera Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
@@ -514,6 +514,9 @@ int main(int argc, char* argv[])
 	auto last = std::chrono::high_resolution_clock::now();
 	float fps = 0.f;
 
+	uint16_t lastMouseX = 0;
+	uint16_t lastMouseY = 0;
+
 	while (!window->ShouldClose())
 	{
 		window->PollMessages();
@@ -554,13 +557,37 @@ int main(int argc, char* argv[])
 
 				++frameCounterPerSecond;
 
+				const uint16_t mouseX = CoreInput.GetMouseX();
+				const uint16_t mouseY = CoreInput.GetMouseY();
+				const bool isMousePressed = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
+
+				if (isMousePressed)
+				{
+					const int deltaX = int(mouseX) - int(lastMouseX);
+					const int deltaY = int(mouseY) - int(lastMouseY);
+
+					const float sensitivity = 1.f;
+					const float xMove = sensitivity * deltaX * renderDelta * .001f;
+					const float yMove = sensitivity * deltaY * renderDelta * .001f;
+
+					camera.Rotate({ 0, 0, 1 }, xMove);
+					camera.RotateLocal({ 1, 0, 0 }, yMove);
+
+					tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
+					VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory,
+						sizeof(TracingParameters), &tracingParameters);
+				}
+
+				lastMouseX = mouseX;
+				lastMouseY = mouseY;
+
 				if (CoreInput.IsKeyPressed(Core::Input::Keys::Escape))
 				{
 					CorePlatform.Quit();
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					(float)windowWidth, (float)windowHeight, renderDelta, fps);
+					window, renderDelta, fps, camera);
 			}
 			
 			if (shouldResize)
@@ -569,6 +596,10 @@ int main(int argc, char* argv[])
 
 				windowWidth = window->GetWidth();
 				windowHeight = window->GetHeight();
+
+				tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
+				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory,
+					sizeof(TracingParameters), &tracingParameters);
 
 				for (uint32_t f = 0; f < framebuffers.size(); ++f)
 				{
@@ -603,7 +634,7 @@ int main(int argc, char* argv[])
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					(float)windowWidth, (float)windowHeight, renderDelta, fps);
+					window, renderDelta, fps, camera);
 			}
 			
 			{

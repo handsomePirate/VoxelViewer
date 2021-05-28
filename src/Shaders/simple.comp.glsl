@@ -63,12 +63,15 @@ uint Translate(uint vptr)
 
 void main()
 {
-	float green = gl_GlobalInvocationID.x / 2048.f;
-	float blue = gl_GlobalInvocationID.y / 2048.f;
+	float pixX = gl_GlobalInvocationID.x / 2048.f;
+	float pixY = gl_GlobalInvocationID.y / 2048.f;
+	vec3 rayDir = camera.rayMin + gl_GlobalInvocationID.x * camera.rayDDx + gl_GlobalInvocationID.y * camera.rayDDy - camera.position;
+	rayDir = normalize(rayDir);
 	
 	const int pointerIndex = 4;
-	vec4 testColor = (camera.rayDDx.z > 0) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
+	//vec4 testColor = (camera.rayDDx.z > 0) ? vec4(1, 0, 0, 1) : vec4(0, 0, 0, 1);
 	//vec4 testColor = vec4(abs(camera.rayDDx), 1);
+	vec4 directionColor = vec4(abs(rayDir), 1);
 	//imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(vec3(blue, 0.f, green), 1.f));
-	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), testColor);
+	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), directionColor);
 }

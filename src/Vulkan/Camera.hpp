@@ -20,9 +20,22 @@ public:
 	Camera() = default;
 	~Camera() = default;
 
+	void Rotate(const Eigen::Vector3f& axis, const float angle);
+	void RotateLocal(const Eigen::Vector3f& axis, const float angle);
+
+	Eigen::Vector3f& Position();
+	Eigen::Vector3f& Forward();
+	Eigen::Vector3f& Right();
+	Eigen::Vector3f& Up();
+	float& Fov();
+
+	static float DegToRad(float value);
+
 	TracingParameters GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight) const;
 
 private:
+	Eigen::Matrix3f GetLocalToGlobalMatrix() const;
+
 	Eigen::Vector3f position_;
 	Eigen::Vector3f forward_;
 	Eigen::Vector3f right_;

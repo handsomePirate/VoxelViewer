@@ -2,7 +2,9 @@
 #include "Core/Common.hpp"
 #include "Vulkan/VulkanFactory.hpp"
 #include "Vulkan/Utils.hpp"
+#include "Vulkan/Camera.hpp"
 #include "Core/Events/EventSystem.hpp"
+#include "Core/Platform/Platform.hpp"
 #include <imgui.h>
 
 namespace GUI
@@ -14,7 +16,7 @@ namespace GUI
 		static void Shutdown();
 		static bool Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 			VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
-			float width, float height, float renderTimeDelta, float fps);
+			Core::Window* const window, float renderTimeDelta, float fps, Camera& camera);
 		static void Draw(VkCommandBuffer commandBuffer, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
 			VkDescriptorSet descriptorSet, VulkanUtils::PushConstantBlock* pushConstantBlock,
 			const VulkanFactory::Buffer::BufferInfo& vertexBuffer, const VulkanFactory::Buffer::BufferInfo& indexBuffer);
