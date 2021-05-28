@@ -2,6 +2,8 @@
 #include "Core/Common.hpp"
 #include <vector>
 
+#define SHADER_ALIGN alignas(16)
+
 // TODO: Large Vulkan structs need to be handled by reference.
 
 namespace VulkanUtils
