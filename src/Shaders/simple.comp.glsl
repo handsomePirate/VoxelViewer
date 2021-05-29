@@ -132,6 +132,16 @@ vec3 PathAsPosition(uvec3 path, uint levelRank)
 	return vec3(float(path.x << levelRank), float(path.y << levelRank), float(path.z << levelRank));
 }
 
+float MaxCoeff(vec3 v)
+{
+	return max(v.x, max(v.y, v.z));
+}
+
+float MinCoeff(vec3 v)
+{
+	return min(v.x, min(v.y, v.z));
+}
+
 void main()
 {
 	uint pixX = gl_GlobalInvocationID.x;
@@ -252,23 +262,14 @@ void main()
 			float dist = distance(parameters.cameraPosition, voxelPos);
 			if (dist < hitDist)
 			{
-				resultColor = abs(voxelPos) * parameters.colorScale;
+				vec3 color = abs(voxelPos) * parameters.colorScale;
+				resultColor = vec3((3.f * MinCoeff(color) + MaxCoeff(color)) / 4.f);
 				hitDist = dist;
 			}
 		}
 	}
 
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(resultColor, 1));
-}
-
-float MaxCoeff(vec3 v)
-{
-	return max(v.x, max(v.y, v.z));
-}
-
-float MinCoeff(vec3 v)
-{
-	return min(v.x, min(v.y, v.z));
 }
 
 uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv, float treeScale,
