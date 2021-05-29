@@ -327,3 +327,8 @@ bool GUI::Renderer::WantMouseCapture()
 {
 	return ImGui::GetIO().WantCaptureMouse;
 }
+
+bool GUI::Renderer::WantKeyboardCapture()
+{
+	return ImGui::GetIO().WantCaptureKeyboard;
+}

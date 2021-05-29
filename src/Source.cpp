@@ -328,7 +328,7 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -512, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 20.f);
+	Camera camera({ 0, -512, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
 
 	TracingParameters tracingParameters;
 	camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
@@ -566,17 +566,48 @@ int main(int argc, char* argv[])
 				const uint16_t mouseY = CoreInput.GetMouseY();
 				const bool isMousePressed = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
 
+				const float timeDelta = renderDelta * .001f;
+
 				if (isMousePressed && !GUI::Renderer::WantMouseCapture())
 				{
-					const int deltaX = int(mouseX) - int(lastMouseX);
-					const int deltaY = int(mouseY) - int(lastMouseY);
+					const int deltaX = int(lastMouseX) - int(mouseX);
+					const int deltaY = int(lastMouseY) - int(mouseY);
 
-					const float sensitivity = .5f;
-					const float xMove = sensitivity * deltaX * renderDelta * .001f;
-					const float yMove = sensitivity * deltaY * renderDelta * .001f;
+					const float sensitivity = .1f;
+					const float xMove = sensitivity * deltaX * timeDelta;
+					const float yMove = sensitivity * deltaY * timeDelta;
 
 					camera.Rotate({ 0, 0, 1 }, xMove);
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
+				}
+
+				if (!GUI::Renderer::WantKeyboardCapture())
+				{
+					bool forward = CoreInput.IsKeyPressed(Core::Input::Keys::W) || CoreInput.IsKeyPressed(Core::Input::Keys::Up);
+					bool back = CoreInput.IsKeyPressed(Core::Input::Keys::S) || CoreInput.IsKeyPressed(Core::Input::Keys::Down);
+					bool left = CoreInput.IsKeyPressed(Core::Input::Keys::A) || CoreInput.IsKeyPressed(Core::Input::Keys::Left);
+					bool right = CoreInput.IsKeyPressed(Core::Input::Keys::D) || CoreInput.IsKeyPressed(Core::Input::Keys::Right);
+
+					bool up = CoreInput.IsKeyPressed(Core::Input::Keys::R);
+					bool down = CoreInput.IsKeyPressed(Core::Input::Keys::F);
+
+					bool shift = CoreInput.IsKeyPressed(Core::Input::Keys::Shift);
+
+					const float moveSensitivity = shift ? 120.f : 50.f;
+					const float forwardDelta =
+						((forward ? moveSensitivity : -moveSensitivity) +
+							(back ? -moveSensitivity : moveSensitivity))
+						* timeDelta;
+					const float rightDelta =
+						((right ? moveSensitivity : -moveSensitivity) +
+							(left ? -moveSensitivity : moveSensitivity))
+						* timeDelta;
+					const float upDelta =
+						((up ? moveSensitivity : -moveSensitivity) +
+							(down ? -moveSensitivity : moveSensitivity))
+						* timeDelta;
+
+					camera.MoveLocal({ rightDelta, upDelta, forwardDelta });
 				}
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);

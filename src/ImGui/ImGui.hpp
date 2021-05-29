@@ -22,5 +22,6 @@ namespace GUI
 			VkDescriptorSet descriptorSet, VulkanUtils::PushConstantBlock* pushConstantBlock,
 			const VulkanFactory::Buffer::BufferInfo& vertexBuffer, const VulkanFactory::Buffer::BufferInfo& indexBuffer);
 		static bool WantMouseCapture();
+		static bool WantKeyboardCapture();
 	};
 }

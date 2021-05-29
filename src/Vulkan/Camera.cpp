@@ -23,6 +23,16 @@ void Camera::RotateLocal(const Eigen::Vector3f& axis, const float angle)
 	Rotate(GetLocalToGlobalMatrix() * axis, angle);
 }
 
+void Camera::Move(const Eigen::Vector3f& offset)
+{
+	position_ += offset;
+}
+
+void Camera::MoveLocal(const Eigen::Vector3f& offset)
+{
+	Move(GetLocalToGlobalMatrix() * offset);
+}
+
 Eigen::Vector3f& Camera::Position()
 {
 	return position_;

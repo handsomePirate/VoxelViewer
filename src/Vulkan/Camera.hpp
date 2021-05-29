@@ -25,6 +25,9 @@ public:
 	void Rotate(const Eigen::Vector3f& axis, const float angle);
 	void RotateLocal(const Eigen::Vector3f& axis, const float angle);
 
+	void Move(const Eigen::Vector3f& offset);
+	void MoveLocal(const Eigen::Vector3f& offset);
+
 	Eigen::Vector3f& Position();
 	Eigen::Vector3f& Forward();
 	Eigen::Vector3f& Right();
