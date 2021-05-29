@@ -88,20 +88,20 @@ uint GetChildNode(uint node, uint nextChild, uint childMask)
 uint GetFirstLeafMask(uint leafPart1, uint leafPart2)
 {
 	return uint(
-		((leafPart2 & 0x000000FF) == 0 ? 0 : 1 << 0) |
-		((leafPart2 & 0x0000FF00) == 0 ? 0 : 1 << 1) |
-		((leafPart2 & 0x00FF0000) == 0 ? 0 : 1 << 2) |
-		((leafPart2 & 0xFF000000) == 0 ? 0 : 1 << 3) |
-		((leafPart1 & 0x000000FF) == 0 ? 0 : 1 << 4) |
-		((leafPart1 & 0x0000FF00) == 0 ? 0 : 1 << 5) |
-		((leafPart1 & 0x00FF0000) == 0 ? 0 : 1 << 6) |
-		((leafPart1 & 0xFF000000) == 0 ? 0 : 1 << 7));
+		((leafPart1 & 0x000000FF) == 0 ? 0 : 1 << 0) |
+		((leafPart1 & 0x0000FF00) == 0 ? 0 : 1 << 1) |
+		((leafPart1 & 0x00FF0000) == 0 ? 0 : 1 << 2) |
+		((leafPart1 & 0xFF000000) == 0 ? 0 : 1 << 3) |
+		((leafPart2 & 0x000000FF) == 0 ? 0 : 1 << 4) |
+		((leafPart2 & 0x0000FF00) == 0 ? 0 : 1 << 5) |
+		((leafPart2 & 0x00FF0000) == 0 ? 0 : 1 << 6) |
+		((leafPart2 & 0xFF000000) == 0 ? 0 : 1 << 7));
 }
 
 uint GetSecondLeafMask(uint leafPart1, uint leafPart2, uint firstMask)
 {
 	const uint shift = uint(firstMask * 8);
-	return (shift < 32) ? uint(leafPart2 >> shift) : uint(leafPart1 >> (shift - 32));
+	return (shift < 32) ? uint(leafPart1 >> shift) : uint(leafPart2 >> (shift - 32));
 }
 
 uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv, float treeScale,
