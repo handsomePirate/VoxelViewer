@@ -53,10 +53,8 @@ float Camera::DegToRad(float value)
 	return value / 2.f * (PI_CONST / 180.f);
 }
 
-TracingParameters Camera::GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight) const
+void Camera::GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight, TracingParameters& tracingParameters) const
 {
-	TracingParameters tracingParameters{};
-
 	const float aspect = imageWidth / float(imageHeight);
 	const Eigen::Vector3f X = right_ * sin(fov_) * aspect;
 	const Eigen::Vector3f Y = up_ * sin(fov_);
@@ -72,8 +70,6 @@ TracingParameters Camera::GetTracingParameters(uint32_t imageWidth, uint32_t ima
 	tracingParameters.RayDDy = (topLeft - bottomLeft) / float(imageHeight);
 
 	tracingParameters.RayMin = bottomLeft;
-
-	return tracingParameters;
 }
 
 Eigen::Matrix3f Camera::GetLocalToGlobalMatrix() const

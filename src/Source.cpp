@@ -329,8 +329,11 @@ int main(int argc, char* argv[])
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
 	Camera camera({ 0, -512, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 20.f);
-	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
+
+	TracingParameters tracingParameters;
+	camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 	tracingParameters.VoxelDetail = HTConstants::MAX_LEVEL_COUNT;
+	tracingParameters.ColorScale = .01f;
 	VulkanFactory::Buffer::BufferInfo tracingUniformBuffer;
 	VulkanFactory::Buffer::Create("Tracing Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
@@ -519,8 +522,6 @@ int main(int argc, char* argv[])
 	uint16_t lastMouseX = 0;
 	uint16_t lastMouseY = 0;
 
-	int voxelDetail = tracingParameters.VoxelDetail;
-
 	while (!window->ShouldClose())
 	{
 		window->PollMessages();
@@ -578,8 +579,7 @@ int main(int argc, char* argv[])
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
 				}
 
-				tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-				tracingParameters.VoxelDetail = voxelDetail;
+				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
 
@@ -592,7 +592,7 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, voxelDetail);
+					window, renderDelta, fps, camera, tracingParameters);
 			}
 			
 			if (shouldResize)
@@ -602,8 +602,7 @@ int main(int argc, char* argv[])
 				windowWidth = window->GetWidth();
 				windowHeight = window->GetHeight();
 
-				tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-				tracingParameters.VoxelDetail = voxelDetail;
+				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
 
@@ -640,7 +639,7 @@ int main(int argc, char* argv[])
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, voxelDetail);
+					window, renderDelta, fps, camera, tracingParameters);
 			}
 			
 			{

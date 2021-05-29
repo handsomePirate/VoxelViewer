@@ -39,6 +39,7 @@ layout(binding = 4) uniform TracingParameters
 	vec3 rayDDx;
 	vec3 rayDDy;
 	int voxelDetail;
+	float colorScale;
 } parameters;
 
 layout(push_constant) uniform PushConstants
@@ -124,6 +125,11 @@ uvec3 PathDescend(uvec3 path, uint child)
 	path.y |= (child & 0x2u) >> 1;
 	path.z |= (child & 0x1u) >> 0;
 	return path;
+}
+
+vec3 PathAsPosition(uvec3 path, uint levelRank)
+{
+	return vec3(float(path.x << levelRank), float(path.y << levelRank), float(path.z << levelRank));
 }
 
 void main()
@@ -237,12 +243,22 @@ void main()
 		}
 	}
 
-	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(resultColor, 1));
-}
+	float hitDist = 3.40282e+038;
+	for (int tree = 0; tree < pushConstants.treeCount; ++tree)
+	{
+		if (traversalPaths[tree].x != 0xFFFFFFFF || traversalPaths[tree].y != 0xFFFFFFFF || traversalPaths[tree].z != 0xFFFFFFFF)
+		{
+			vec3 voxelPos = vec3(treeRoots[tree].rootOffset) + PathAsPosition(traversalPaths[tree], 0);
+			float dist = distance(parameters.cameraPosition, voxelPos);
+			if (dist < hitDist)
+			{
+				resultColor = abs(voxelPos) * parameters.colorScale;
+				hitDist = dist;
+			}
+		}
+	}
 
-vec3 PathAsPosition(uvec3 path, uint levelRank)
-{
-	return vec3(float(path.x << levelRank), float(path.y << levelRank), float(path.z << levelRank));
+	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(resultColor, 1));
 }
 
 float MaxCoeff(vec3 v)

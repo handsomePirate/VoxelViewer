@@ -12,6 +12,7 @@ struct TracingParameters
 	SHADER_ALIGN Eigen::Vector3f RayDDx;
 	SHADER_ALIGN Eigen::Vector3f RayDDy;
 	int VoxelDetail;
+	float ColorScale;
 };
 
 class Camera
@@ -32,7 +33,7 @@ public:
 
 	static float DegToRad(float value);
 
-	TracingParameters GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight) const;
+	void GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight, TracingParameters& tracingParameters) const;
 
 private:
 	Eigen::Matrix3f GetLocalToGlobalMatrix() const;

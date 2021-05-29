@@ -91,7 +91,7 @@ void GUI::Renderer::Shutdown()
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
-	int& voxelDetail)
+	TracingParameters& tracingParameters)
 {
 	float deltaTimeSeconds = renderTimeDelta * .001f;
 	ImGuiIO& io = ImGui::GetIO();
@@ -160,7 +160,9 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 
 		ImGui::SliderFloat("fov", &camera.Fov(), Camera::DegToRad(20.f), Camera::DegToRad(100.f));
 
-		ImGui::SliderInt("voxel detail", &voxelDetail, 1, HTConstants::MAX_LEVEL_COUNT);
+		ImGui::SliderInt("voxel detail", &tracingParameters.VoxelDetail, 1, HTConstants::MAX_LEVEL_COUNT);
+
+		ImGui::SliderFloat("color scale", &tracingParameters.ColorScale, .01f, .1f);
 
 		Core::LoggerType resultingTypes = (Core::LoggerType)
 			((guiLogger ? (int)Core::LoggerType::ImGui : 0) |
