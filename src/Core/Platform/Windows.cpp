@@ -181,14 +181,17 @@ void Core::Platform::Sleep(uint32_t ms)
 }
 
 Core::Window* Core::Platform::GetNewWindow(const char* name,
-    uint32_t x, uint32_t y, uint32_t width, uint32_t height) const
+    uint32_t x, uint32_t y, uint32_t width, uint32_t height, bool resizable) const
 {
     uint32_t windowStyle = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
     uint32_t windowExStyle = WS_EX_APPWINDOW;
 
-    windowStyle |= WS_MAXIMIZEBOX;
-    windowStyle |= WS_MINIMIZEBOX;
-    windowStyle |= WS_THICKFRAME;
+    if (resizable)
+    {
+        windowStyle |= WS_MAXIMIZEBOX;
+        windowStyle |= WS_MINIMIZEBOX;
+        windowStyle |= WS_THICKFRAME;
+    }
 
     RECT borderRectangle = { 0, 0, 0, 0 };
     ::AdjustWindowRectEx(&borderRectangle, windowStyle, 0, windowExStyle);

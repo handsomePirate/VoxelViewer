@@ -148,7 +148,8 @@ int main(int argc, char* argv[])
 #pragma region Window and surface
 	uint32_t windowWidth = 1280;
 	uint32_t windowHeight = 720;
-	Core::Window* window = CorePlatform.GetNewWindow(CoreFilesystem.ExecutableName().c_str(), 50, 50, windowWidth, windowHeight);
+	Core::Window* window = CorePlatform.GetNewWindow(CoreFilesystem.ExecutableName().c_str(), 50, 50,
+		windowWidth, windowHeight, false);
 	VkSurfaceKHR surface = VulkanFactory::Surface::Create("Win32 Window Surface", deviceInfo.Handle, instance, window->GetHandle());
 #pragma endregion
 
@@ -274,8 +275,8 @@ int main(int argc, char* argv[])
 #pragma endregion
 
 #pragma region Texture target
-	const int targetWidth = 2048;
-	const int targetHeight = 2048;
+	const int targetWidth = windowWidth;
+	const int targetHeight = windowHeight;
 	VulkanFactory::Image::ImageInfo2 renderTarget;
 	VulkanFactory::Image::Create("Compute Texture Target", deviceInfo, targetWidth, targetHeight, VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, renderTarget);
@@ -327,7 +328,7 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 30.f);
+	Camera camera({ 0, -512, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 20.f);
 	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
 	tracingParameters.VoxelDetail = HTConstants::MAX_LEVEL_COUNT;
 	VulkanFactory::Buffer::BufferInfo tracingUniformBuffer;
@@ -569,16 +570,15 @@ int main(int argc, char* argv[])
 					const int deltaX = int(mouseX) - int(lastMouseX);
 					const int deltaY = int(mouseY) - int(lastMouseY);
 
-					const float sensitivity = 1.f;
+					const float sensitivity = .5f;
 					const float xMove = sensitivity * deltaX * renderDelta * .001f;
 					const float yMove = sensitivity * deltaY * renderDelta * .001f;
 
 					camera.Rotate({ 0, 0, 1 }, xMove);
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
-
-					tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
 				}
 
+				tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
 				tracingParameters.VoxelDetail = voxelDetail;
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);

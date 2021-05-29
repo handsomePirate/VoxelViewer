@@ -54,7 +54,8 @@ namespace Core
 
 		static void OutputMessage(const char* message, uint8_t color);
 		static void Sleep(uint32_t ms);
-		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t width, uint32_t height) const;
+		Window* GetNewWindow(const char* name, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+			bool resizable) const;
 		void DeleteWindow(Window* window) const;
 
 		void SetCursor(CursorType type) const;
