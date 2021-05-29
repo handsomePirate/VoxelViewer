@@ -20,5 +20,6 @@ namespace GUI
 		static void Draw(VkCommandBuffer commandBuffer, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
 			VkDescriptorSet descriptorSet, VulkanUtils::PushConstantBlock* pushConstantBlock,
 			const VulkanFactory::Buffer::BufferInfo& vertexBuffer, const VulkanFactory::Buffer::BufferInfo& indexBuffer);
+		static bool WantMouseCapture();
 	};
 }

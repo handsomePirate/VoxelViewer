@@ -320,3 +320,8 @@ void GUI::Renderer::Draw(VkCommandBuffer commandBuffer, VkPipeline pipeline, VkP
 		vertexOffset += cmd_list->VtxBuffer.Size;
 	}
 }
+
+bool GUI::Renderer::WantMouseCapture()
+{
+	return ImGui::GetIO().WantCaptureMouse;
+}

@@ -329,7 +329,7 @@ int main(int argc, char* argv[])
 
 	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 30.f);
 	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-	tracingParameters.VoxelDetail = HTConstants::LEAF_LEVEL;
+	tracingParameters.VoxelDetail = HTConstants::MAX_LEVEL_COUNT;
 	VulkanFactory::Buffer::BufferInfo tracingUniformBuffer;
 	VulkanFactory::Buffer::Create("Tracing Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
@@ -564,7 +564,7 @@ int main(int argc, char* argv[])
 				const uint16_t mouseY = CoreInput.GetMouseY();
 				const bool isMousePressed = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
 
-				if (isMousePressed)
+				if (isMousePressed && !GUI::Renderer::WantMouseCapture())
 				{
 					const int deltaX = int(mouseX) - int(lastMouseX);
 					const int deltaY = int(mouseY) - int(lastMouseY);
@@ -577,10 +577,11 @@ int main(int argc, char* argv[])
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
 
 					tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-					tracingParameters.VoxelDetail = voxelDetail;
-					VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
-						sizeof(TracingParameters), &tracingParameters);
 				}
+
+				tracingParameters.VoxelDetail = voxelDetail;
+				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
+					sizeof(TracingParameters), &tracingParameters);
 
 				lastMouseX = mouseX;
 				lastMouseY = mouseY;
