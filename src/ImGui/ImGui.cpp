@@ -4,6 +4,7 @@
 #include "Core/Input/Input.hpp"
 #include "Core/Platform/Platform.hpp"
 #include "Vulkan/ShaderManager.hpp"
+#include "HashDAG/HashDAG.hpp"
 
 bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& vertexBuffer, VulkanFactory::Buffer::BufferInfo& indexBuffer);
@@ -89,7 +90,8 @@ void GUI::Renderer::Shutdown()
 
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
-	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera)
+	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
+	int& voxelDetail)
 {
 	float deltaTimeSeconds = renderTimeDelta * .001f;
 	ImGuiIO& io = ImGui::GetIO();
@@ -157,6 +159,8 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		ImGui::Checkbox("Console", &consoleLogger);
 
 		ImGui::SliderFloat("fov", &camera.Fov(), Camera::DegToRad(20.f), Camera::DegToRad(100.f));
+
+		ImGui::SliderInt("voxel detail", &voxelDetail, 1, HTConstants::MAX_LEVEL_COUNT);
 
 		Core::LoggerType resultingTypes = (Core::LoggerType)
 			((guiLogger ? (int)Core::LoggerType::ImGui : 0) |

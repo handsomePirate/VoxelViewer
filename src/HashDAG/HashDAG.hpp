@@ -51,6 +51,8 @@ struct HTStats
 
 struct HashDAGPushConstants
 {
+	uint32_t MaxLevels = HTConstants::MAX_LEVEL_COUNT;
+	uint32_t LeafLevel = HTConstants::LEAF_LEVEL;
 	uint32_t PageSize = HTConstants::PAGE_SIZE;
 	uint32_t PageCount;
 	uint32_t TreeCount;

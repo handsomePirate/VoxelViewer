@@ -62,7 +62,7 @@ struct EventLogger
 int main(int argc, char* argv[])
 {
 #pragma region Program options
-	const bool enableVulkanDebug = true;
+	const bool enableVulkanDebug = false;
 #pragma endregion
 
 #pragma region Singleton initialization
@@ -329,10 +329,11 @@ int main(int argc, char* argv[])
 
 	Camera camera({ 0, -256, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 30.f);
 	TracingParameters tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-	VulkanFactory::Buffer::BufferInfo cameraUniformBuffer;
-	VulkanFactory::Buffer::Create("Camera Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, cameraUniformBuffer);
-	VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory, sizeof(TracingParameters), &tracingParameters);
+	tracingParameters.VoxelDetail = HTConstants::LEAF_LEVEL;
+	VulkanFactory::Buffer::BufferInfo tracingUniformBuffer;
+	VulkanFactory::Buffer::Create("Tracing Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory, sizeof(TracingParameters), &tracingParameters);
 
 	VkDescriptorBufferInfo storageBuffersDescriptorInfo[3] =
 	{
@@ -343,7 +344,7 @@ int main(int argc, char* argv[])
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
 		&renderTarget.DescriptorImageInfo, 1,
 		storageBuffersDescriptorInfo, 3,
-		&cameraUniformBuffer.DescriptorBufferInfo, 1);
+		&tracingUniformBuffer.DescriptorBufferInfo, 1);
 #pragma endregion
 
 #pragma region Pipelines
@@ -517,6 +518,8 @@ int main(int argc, char* argv[])
 	uint16_t lastMouseX = 0;
 	uint16_t lastMouseY = 0;
 
+	int voxelDetail = tracingParameters.VoxelDetail;
+
 	while (!window->ShouldClose())
 	{
 		window->PollMessages();
@@ -574,7 +577,8 @@ int main(int argc, char* argv[])
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
 
 					tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-					VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory,
+					tracingParameters.VoxelDetail = voxelDetail;
+					VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 						sizeof(TracingParameters), &tracingParameters);
 				}
 
@@ -587,7 +591,7 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera);
+					window, renderDelta, fps, camera, voxelDetail);
 			}
 			
 			if (shouldResize)
@@ -598,7 +602,8 @@ int main(int argc, char* argv[])
 				windowHeight = window->GetHeight();
 
 				tracingParameters = camera.GetTracingParameters(windowWidth, windowHeight);
-				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cameraUniformBuffer.Memory,
+				tracingParameters.VoxelDetail = voxelDetail;
+				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
 
 				for (uint32_t f = 0; f < framebuffers.size(); ++f)
@@ -634,7 +639,7 @@ int main(int argc, char* argv[])
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera);
+					window, renderDelta, fps, camera, voxelDetail);
 			}
 			
 			{
@@ -779,7 +784,7 @@ int main(int argc, char* argv[])
 	VulkanFactory::Pipeline::DestroyLayout(deviceInfo.Handle, computePipelineLayout);
 	VulkanFactory::Pipeline::DestroyLayout(deviceInfo.Handle, graphicsPipelineLayout);
 
-	VulkanFactory::Buffer::Destroy(deviceInfo, cameraUniformBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, tracingUniformBuffer);
 
 	VulkanFactory::Descriptor::DestroySetLayout(deviceInfo.Handle, computeSetLayout);
 	VulkanFactory::Descriptor::DestroySetLayout(deviceInfo.Handle, rasterizationSetLayout);

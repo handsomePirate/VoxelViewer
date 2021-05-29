@@ -11,6 +11,7 @@ struct TracingParameters
 	SHADER_ALIGN Eigen::Vector3f RayMin;
 	SHADER_ALIGN Eigen::Vector3f RayDDx;
 	SHADER_ALIGN Eigen::Vector3f RayDDy;
+	int VoxelDetail;
 };
 
 class Camera
