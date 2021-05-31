@@ -69,7 +69,8 @@ project "VoxelViewer"
 		"$(VULKAN_SDK)/lib/vulkan-1.lib",
 		"$(VULKAN_SDK)/lib/shaderc_shared.lib",
 		"ext/imgui/bin/%{cfg.buildcfg}/ImGui.lib",
-		"ext/openvdb/lib/%{cfg.buildcfg}/openvdb.lib"
+		"ext/openvdb/lib/%{cfg.buildcfg}/openvdb.lib",
+		"ext/openvdb/ext/blosc/lib/%{cfg.buildcfg}/blosc.lib"
 	}
 
 	filter "system:windows"
@@ -81,7 +82,12 @@ project "VoxelViewer"
 		symbols "On"
 		links {
 			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbb_debug.lib",
-			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbbmalloc_debug.lib"
+			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbbmalloc_debug.lib",
+			"ext/openvdb/ext/OpenEXR/lib/%{cfg.buildcfg}/Half-2_5_d.lib",
+			"ext/openvdb/ext/OpenEXR/lib/%{cfg.buildcfg}/lz4d.lib",
+			"ext/openvdb/ext/OpenEXR/lib/%{cfg.buildcfg}/snappyd.lib",
+			"ext/openvdb/ext/zlib/lib/%{cfg.buildcfg}/zlibd.lib",
+			"ext/openvdb/ext/zstd/lib/%{cfg.buildcfg}/zstdd.lib"
 		}
 		--GLSLShaderCompilationRuleVars {
 		--	Configuration = "Debug"
@@ -92,7 +98,12 @@ project "VoxelViewer"
 		optimize "On"
 		links {
 			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbb.lib",
-			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbbmalloc.lib"
+			"ext/openvdb/ext/tbb/lib/%{cfg.buildcfg}/tbbmalloc.lib",
+			"ext/openvdb/ext/OpenEXR/lib/%{cfg.buildcfg}/Half-2_5.lib",
+			"ext/openvdb/ext/OpenEXR/lib/%{cfg.buildcfg}/lz4.lib",
+			"ext/openvdb/ext/OpenEXR/lib/%{cfg.buildcfg}/snappy.lib",
+			"ext/openvdb/ext/zlib/lib/%{cfg.buildcfg}/zlib.lib",
+			"ext/openvdb/ext/zstd/lib/%{cfg.buildcfg}/zstd.lib"
 		}
 
 	filter {}
