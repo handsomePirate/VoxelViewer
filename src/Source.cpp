@@ -62,7 +62,7 @@ struct EventLogger
 int main(int argc, char* argv[])
 {
 #pragma region Program options
-	const bool enableVulkanDebug = false;
+	const bool enableVulkanDebug = true;
 #pragma endregion
 
 #pragma region Singleton initialization
@@ -131,6 +131,8 @@ int main(int argc, char* argv[])
 
 #pragma region Device features and extensions
 	VkPhysicalDeviceFeatures requestedFeatures{};
+	requestedFeatures.shaderInt64 = VK_TRUE;
+	requestedFeatures.shaderFloat64 = VK_TRUE;
 	std::vector<const char*> deviceExtensions;
 	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 #pragma endregion
@@ -249,11 +251,12 @@ int main(int argc, char* argv[])
 	Converter::OpenVDBToDAG(grid, hd);
 	auto hdEnd = std::chrono::high_resolution_clock::now();
 	auto msCount = std::chrono::duration_cast<std::chrono::milliseconds>(hdEnd - hdStart).count();
-	CoreLogInfo("Hash DAG created in %lld ms, (0, 0, 0) is %s", msCount, hd.IsActive({ 0, 0, 0 }) ? "active" : "not active");
+	CoreLogInfo("Hash DAG created in %lld ms", msCount);
 
 	HashDAGGPUInfo uploadInfo;
+	ColorGPUInfo colorInfo;
 	auto uploadStart = std::chrono::high_resolution_clock::now();
-	hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo);
+	hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo, colorInfo);
 	auto uploadEnd = std::chrono::high_resolution_clock::now();
 	msCount = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEnd - uploadStart).count();
 	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
@@ -292,7 +295,7 @@ int main(int argc, char* argv[])
 	{
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
-		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3),
+		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
 	};
 	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool("Compute and Display Descriptor Pool",
@@ -319,7 +322,11 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
 		VulkanInitializers::DescriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
 	};
 	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
 		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
@@ -339,15 +346,18 @@ int main(int argc, char* argv[])
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory, sizeof(TracingParameters), &tracingParameters);
 
-	VkDescriptorBufferInfo storageBuffersDescriptorInfo[3] =
+	const uint32_t storageBufferCount = 5;
+	VkDescriptorBufferInfo storageBuffersDescriptorInfo[storageBufferCount] =
 	{
 		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo,
 		uploadInfo.PagesStorageBuffer.DescriptorBufferInfo,
-		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo
+		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo,
+		colorInfo.ColorsStorageBuffer.DescriptorBufferInfo,
+		colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo
 	};
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
 		&renderTarget.DescriptorImageInfo, 1,
-		storageBuffersDescriptorInfo, 3,
+		storageBuffersDescriptorInfo, storageBufferCount,
 		&tracingUniformBuffer.DescriptorBufferInfo, 1);
 #pragma endregion
 
@@ -826,6 +836,9 @@ int main(int argc, char* argv[])
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, computeShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
+
+	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorOffsetsStorageBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorsStorageBuffer);
 
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.TreeRootsStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PagesStorageBuffer);

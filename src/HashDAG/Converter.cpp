@@ -59,12 +59,13 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 	for (int i = 0; i < roots.size(); ++i)
 	{
 		uint64_t voxelIndex = 0;
+		Color& colorArray = hd.AddColorArray(roots[i]->onVoxelCount());
 		// TODO: Get the position of the L1 node so that the Hash tree is able to retain that information.
 #ifdef DEBUG_CONVERTER
 		AxisAlignedCubeI treebbox;
 		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, voxelIndex, 0, false, 1, treebbox);
 #else
-		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, voxelIndex, 0, false, 1);
+		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, colorArray, voxelIndex, 0, false, 1);
 #endif
 		assert(rootPtr != HTConstants::INVALID_POINTER);
 		assert(voxelIndex == roots[i]->onVoxelCount());
@@ -77,11 +78,11 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 
 #ifdef DEBUG_CONVERTER
 uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube,
-	void* nodeIn, HashDAG& hd,
+	void* nodeIn, HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,
 	int level, bool full, int depth, const AxisAlignedCubeI& treebbox)
 #else
 uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube,
-	void* nodeIn, HashDAG& hd, uint64_t& voxelIndex,
+	void* nodeIn, HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,
 	int level, bool full, int depth)
 #endif
 {
@@ -124,9 +125,9 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 				}
 			}
 #ifdef DEBUG_CONVERTER
-			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth, newTreebbox);
+			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth, newTreebbox);
 #else
-			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth);
+			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth);
 #endif
 		}
 		else
@@ -159,9 +160,9 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 				}
 			}
 #ifdef DEBUG_CONVERTER
-			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth, treebbox);
+			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth, treebbox);
 #else
-			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth);
+			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth);
 #endif
 		}
 		else
@@ -174,6 +175,11 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 	{
 		// TODO: Add colors.
 		openvdb::Vec3SGrid::TreeType::LeafNodeType* leaf = (openvdb::Vec3SGrid::TreeType::LeafNodeType*)nodeIn;
+
+		for (auto it = leaf->beginValueAll(); it != leaf->endValueAll(); ++it)
+		{
+			it;
+		}
 		if (leaf)
 		{
 #ifdef DEBUG_CONVERTER
@@ -291,6 +297,46 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 					node[0] |= 1 << i;
 					node.push_back(hd.FindOrAddLeaf(leafMask));
 					node.push_back(uint32_t(voxelIndex - parentIndex));
+
+					static uint32_t zOffset[8] =
+					{
+						0, 4, 0, 4, 0, 4, 0, 4
+					};
+					static uint32_t yOffset[8] =
+					{
+						0, 0, 4, 4, 0, 0, 4, 4
+					};
+					static uint32_t xOffset[8] =
+					{
+						0, 0, 0, 0, 4, 4, 4, 4
+					};
+
+					for (uint32_t xLeaf = 0; xLeaf < 4; ++xLeaf)
+					{
+						for (uint32_t yLeaf = 0; yLeaf < 4; ++yLeaf)
+						{
+							for (uint32_t zLeaf = 0; zLeaf < 4; ++zLeaf)
+							{
+								const uint64_t leafBit = 1ull << (zLeaf + 4 * yLeaf + 16 * xLeaf);
+								if (leafBit & leafMask)
+								{
+									const uint32_t allValueIndex = zLeaf + zOffset[i] + yLeaf + yOffset[i] + xLeaf + xOffset[i];
+
+									int val = 0;
+									auto it = leaf->beginValueAll();
+									while (val < allValueIndex)
+									{
+										++it;
+										++val;
+									}
+									
+									uint64_t colorVoxelIndex = voxelIndex + __popcnt64((leafBit - 1) & leafMask);
+									hdColors.Set(colorVoxelIndex, *it);
+								}
+							}
+						}
+					}
+
 					voxelIndex += __popcnt64(leafMask);
 				}
 			}

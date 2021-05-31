@@ -3,6 +3,7 @@
 #include "BoundingBox.hpp"
 #include "Vulkan/VulkanFactory.hpp"
 #include "Vulkan/Camera.hpp"
+#include "Color.hpp"
 #include <Eigen/Dense>
 #include <ostream>
 
@@ -206,6 +207,8 @@ public:
 	/// Makes a node the root of a tree and assigns it an ofset from the origin.
 	void AddRoot(HashTable::vptr_t node, const Eigen::Vector3i& offset);
 
+	Color& AddColorArray(int voxelCount);
+
 	/// Querries the trees stored in this structure. Returns true if the voxels is on, returns false otherwise.
 	bool IsActive(const Eigen::Vector3i& voxel) const;
 
@@ -215,7 +218,7 @@ public:
 		const Eigen::Vector3f& perturbationEpsilon = { 1e-5f, 1e-5f, 1e-5f }) const;
 
 	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
-		VkQueue queue, HashDAGGPUInfo& uploadInfo);
+		VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo);
 
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).
@@ -239,4 +242,5 @@ private:
 
 	HashTable ht_;
 	std::vector<HashTree> trees_;
+	std::vector<std::unique_ptr<Color>> treeColorArrays_;
 };

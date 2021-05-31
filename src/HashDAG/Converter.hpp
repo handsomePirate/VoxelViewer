@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Common.hpp"
 #include "HashDAG.hpp"
+#include "Color.hpp"
 
 #include <openvdb/openvdb.h>
 #include <Eigen/Dense>
@@ -79,23 +80,23 @@ public:
 private:
 #ifdef DEBUG_CONVERTER
 	static uint32_t ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube,
-		void* nodeIn, HashDAG& hd, uint64_t& voxelIndex,
+		void* nodeIn, HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,
 		int level, bool full, int depth, const AxisAlignedCubeI& treebbox);
 #else
 	static uint32_t ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube,
-		void* nodeIn, HashDAG& hd, uint64_t& voxelIndex,
+		void* nodeIn, HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,
 		int level, bool full, int depth);
 #endif
 
 #ifdef DEBUG_CONVERTER
 	template <typename NodeType, int NODE_SIZE>
 	static uint32_t HandleOpenvdbLevel(const AxisAlignedCubeI& openvdbTrackingCube,
-		HashDAG& hd, uint64_t& voxelIndex,
+		HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,
 		int level, bool full, NodeType* node, int depth, const AxisAlignedCubeI& treebbox)
 #else
 	template <typename NodeType, int NODE_SIZE>
 	static uint32_t HandleOpenvdbLevel(const AxisAlignedCubeI& openvdbTrackingCube,
-		HashDAG& hd, uint64_t& voxelIndex,
+		HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,
 		int level, bool full, NodeType* node, int depth)
 #endif
 	{
@@ -158,17 +159,17 @@ private:
 					bool itemIn = node->beginChildAll().getItem(nodeIndex, nextNode, dummy);
 					assert(itemIn);
 #ifdef DEBUG_CONVERTER
-					result = ConstructHashDAG(trackingCube, nextNode, hd, voxelIndex, level + 1, full, depth + 1, treebboxChildren[i]);
+					result = ConstructHashDAG(trackingCube, nextNode, hd, hdColors, voxelIndex, level + 1, full, depth + 1, treebboxChildren[i]);
 #else
-					result = ConstructHashDAG(trackingCube, nextNode, hd, voxelIndex, level + 1, full, depth + 1);
+					result = ConstructHashDAG(trackingCube, nextNode, hd, hdColors, voxelIndex, level + 1, full, depth + 1);
 #endif
 				}
 				else
 				{
 #ifdef DEBUG_CONVERTER
-					result = ConstructHashDAG(trackingChildren[i], node, hd, voxelIndex, level + 1, full, depth, treebboxChildren[i]);
+					result = ConstructHashDAG(trackingChildren[i], node, hd, hdColors, voxelIndex, level + 1, full, depth, treebboxChildren[i]);
 #else
-					result = ConstructHashDAG(trackingChildren[i], node, hd, voxelIndex, level + 1, full, depth);
+					result = ConstructHashDAG(trackingChildren[i], node, hd, hdColors, voxelIndex, level + 1, full, depth);
 #endif
 				}
 				if (result != HTConstants::INVALID_POINTER)

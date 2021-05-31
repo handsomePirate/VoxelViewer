@@ -12,6 +12,7 @@
 #include <cctype>
 #include <cassert>
 #include <utility>
+#include <memory>
 
 #if defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
 #define PLATFORM_WINDOWS

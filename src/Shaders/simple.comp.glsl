@@ -1,5 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_float64 : enable
 
 #define MAX_TREES 128
 #define MAX_LEVELS 12
@@ -32,7 +34,17 @@ layout(std140, binding = 3) buffer TreeRoots
 	TreeRoot treeRoots[];
 };
 
-layout(binding = 4) uniform TracingParameters 
+layout(std140, binding = 4) buffer Colors
+{
+	vec4 colorArrays[];
+};
+
+layout(std140, binding = 5) buffer ColorOffsets
+{
+	u64vec2 colorOffsets[];
+};
+
+layout(binding = 6) uniform TracingParameters 
 {
 	vec3 cameraPosition;
 	vec3 rayMin;
@@ -53,6 +65,7 @@ layout(push_constant) uniform PushConstants
 
 struct NodeInfo
 {
+	uint64_t voxelIndex;
 	uint nodePtr;
 	uint childMask;
 	uint visitMask;
@@ -66,6 +79,11 @@ uint PageTableElement(uint e)
 uint PagePoolElement(uint e)
 {
 	return entries[e / 4][e % 4];
+}
+
+uint64_t PagePoolElement64(uint e)
+{
+	return (uint64_t(entries[e / 4][e % 4])) | (uint64_t(entries[(e + 1) / 4][(e + 1) % 4]) << 32);
 }
 
 uint Translate(uint vptr)
@@ -86,27 +104,72 @@ uint GetChildNode(uint node, uint nextChild, uint childMask)
 	return PagePoolElement(Translate(node) + ((offset - 1) << 1u) + 1);
 }
 
-uint GetFirstLeafMask(uint leafPart1, uint leafPart2)
+uint GetChildOffset(uint node, uint nextChild, uint childMask)
 {
-	return uint(
-		((leafPart1 & 0x000000FF) == 0 ? 0 : 1 << 0) |
-		((leafPart1 & 0x0000FF00) == 0 ? 0 : 1 << 1) |
-		((leafPart1 & 0x00FF0000) == 0 ? 0 : 1 << 2) |
-		((leafPart1 & 0xFF000000) == 0 ? 0 : 1 << 3) |
-		((leafPart2 & 0x000000FF) == 0 ? 0 : 1 << 4) |
-		((leafPart2 & 0x0000FF00) == 0 ? 0 : 1 << 5) |
-		((leafPart2 & 0x00FF0000) == 0 ? 0 : 1 << 6) |
-		((leafPart2 & 0xFF000000) == 0 ? 0 : 1 << 7));
+	uint offset = bitCount(childMask & ((1u << nextChild) - 1u)) + 1;
+	return PagePoolElement(Translate(node) + (offset << 1u));
 }
 
-uint GetSecondLeafMask(uint leafPart1, uint leafPart2, uint firstMask)
+uint GetFirstLeafMask(uint64_t leaf)
+{
+	return uint(
+		((leaf & 0x00000000000000FFul) == 0 ? 0 : 1 << 0) |
+		((leaf & 0x000000000000FF00ul) == 0 ? 0 : 1 << 1) |
+		((leaf & 0x0000000000FF0000ul) == 0 ? 0 : 1 << 2) |
+		((leaf & 0x00000000FF000000ul) == 0 ? 0 : 1 << 3) |
+		((leaf & 0x000000FF00000000ul) == 0 ? 0 : 1 << 4) |
+		((leaf & 0x0000FF0000000000ul) == 0 ? 0 : 1 << 5) |
+		((leaf & 0x00FF000000000000ul) == 0 ? 0 : 1 << 6) |
+		((leaf & 0xFF00000000000000ul) == 0 ? 0 : 1 << 7));
+}
+
+uint GetSecondLeafMask(uint64_t leaf, uint firstMask)
 {
 	const uint shift = uint(firstMask * 8);
-	return (shift < 32) ? uint(leafPart1 >> shift) : uint(leafPart2 >> (shift - 32));
+	return uint(leaf >> shift);
+}
+
+uint GetFirstVoxelCount(uint64_t leaf, uint nextChild)
+{
+	uint mask1 = uint(
+		((leaf & 0x00000001) != 0 ? 0x00000000 : 0) |
+		((leaf & 0x00000002) != 0 ? 0x000000FF : 0) |
+		((leaf & 0x00000004) != 0 ? 0x0000FFFF : 0) |
+		((leaf & 0x00000008) != 0 ? 0x00FFFFFF : 0) |
+		((leaf & 0x00000010) != 0 ? 0xFFFFFFFF : 0) |
+		((leaf & 0x00000020) != 0 ? 0xFFFFFFFF : 0) |
+		((leaf & 0x00000040) != 0 ? 0xFFFFFFFF : 0) |
+		((leaf & 0x00000080) != 0 ? 0xFFFFFFFF : 0));
+
+	uint mask2 = uint(
+		((leaf & 0x00000001) != 0 ? 0x00000000 : 0) |
+		((leaf & 0x00000002) != 0 ? 0x00000000 : 0) |
+		((leaf & 0x00000004) != 0 ? 0x00000000 : 0) |
+		((leaf & 0x00000008) != 0 ? 0x00000000 : 0) |
+		((leaf & 0x00000010) != 0 ? 0x00000000 : 0) |
+		((leaf & 0x00000020) != 0 ? 0x000000FF : 0) |
+		((leaf & 0x00000040) != 0 ? 0x0000FFFF : 0) |
+		((leaf & 0x00000080) != 0 ? 0x00FFFFFF : 0));
+
+	uint leaf1 = uint(leaf & 0x00000000FFFFFFFFul);
+	uint leaf2 = uint(leaf & 0xFFFFFFFF00000000ul);
+
+	return bitCount(leaf1 & mask1) + bitCount(leaf2 & mask2);
+}
+
+uint GetSecondVoxelCount(uint mask, uint nextChild)
+{
+	return bitCount((nextChild - 1) & mask);
 }
 
 uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv, float treeScale,
 	bool isRoot);
+
+vec3 GetVoxelColor(int tree, uint64_t voxelIndex)
+{
+	uint64_t colorIndex = colorOffsets[tree / 2][tree % 2] + voxelIndex;
+	return vec3(voxelIndex > 1);//colorArrays[uint(colorIndex)].rgb;
+}
 
 uvec3 PathAscend(uvec3 path, uint levels)
 {
@@ -160,6 +223,7 @@ void main()
 		(rayDir.z < 0.f ? 1 : 0);
 
 	uvec3 traversalPaths[MAX_TREES];
+	uint64_t voxelIndices[MAX_TREES];
 
 	vec3 resultColor = vec3(0);
 	//int tree = 6;
@@ -170,8 +234,9 @@ void main()
 		uint level = 0;
 		NodeInfo stack[MAX_LEVELS];
 
-		uint cachedLeafPart1;
-		uint cachedLeafPart2;
+		//uint cachedLeafPart1;
+		//uint cachedLeafPart2;
+		uint64_t cachedLeaf;
 
 		traversalPaths[tree] = uvec3(0);
 
@@ -179,6 +244,7 @@ void main()
 		stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
 		stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPaths[tree],
 			rayPos, rayDir, rayInv, 1, true);
+		stack[level].voxelIndex = 0;
 
 		for (;;)
 		{
@@ -194,6 +260,7 @@ void main()
 			{
 				// Empty path signifies that we found no intersections.
 				traversalPaths[tree] = uvec3(0xFFFFFFFF);
+				stack[level].voxelIndex = 0;
 				break;
 			}
 
@@ -219,7 +286,7 @@ void main()
 			if (level == min(pushConstants.maxLevels, voxelDetail))
 			{
 				// We have intersected a voxel and we have the path to it.
-				resultColor = vec3(1);
+				voxelIndices[tree] = stack[level - 1].voxelIndex;
 				break;
 			}
 
@@ -230,25 +297,31 @@ void main()
 				stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
 				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPaths[tree], rayPos, rayDir,
 					rayInv, 1, false);
+				stack[level].voxelIndex = stack[level - 1].voxelIndex +
+					GetChildOffset(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 			}
 			else
 			{
 				uint childMask;
+				uint64_t voxelIndex;
 				if (level == pushConstants.leafLevel)
 				{
 					uint leafPtr = GetChildNode(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
-					cachedLeafPart1 = PagePoolElement(Translate(leafPtr));
-					cachedLeafPart2 = PagePoolElement(Translate(leafPtr) + 1);
-					childMask = GetFirstLeafMask(cachedLeafPart1, cachedLeafPart2);
+					cachedLeaf = PagePoolElement64(Translate(leafPtr));
+					childMask = GetFirstLeafMask(cachedLeaf);
+
+					voxelIndex = stack[level - 1].voxelIndex + GetFirstVoxelCount(cachedLeaf, nextChild);
 				}
 				else
 				{
-					childMask = GetSecondLeafMask(cachedLeafPart1, cachedLeafPart2, nextChild);
+					childMask = GetSecondLeafMask(cachedLeaf, nextChild);
+					voxelIndex = stack[level - 1].voxelIndex + GetSecondVoxelCount(childMask, nextChild);
 				}
 
 				stack[level].childMask = childMask;
 				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPaths[tree], rayPos, rayDir,
 					rayInv, 1, false);
+				stack[level].voxelIndex = voxelIndex;
 			}
 		}
 	}
@@ -263,7 +336,21 @@ void main()
 			if (dist < hitDist)
 			{
 				vec3 color = abs(voxelPos) * parameters.colorScale;
-				resultColor = vec3((3.f * MinCoeff(color) + MaxCoeff(color)) / 4.f);
+				//resultColor = vec3((3.f * MinCoeff(color) + MaxCoeff(color)) / 4.f);
+				resultColor = GetVoxelColor(tree, voxelIndices[tree]);
+				//resultColor = vec3(
+				//	PagePoolElement(Translate(
+				//	PagePoolElement(Translate(
+				//	PagePoolElement(Translate(
+				//		PagePoolElement(Translate(
+				//			PagePoolElement(Translate(
+				//				PagePoolElement(Translate(treeRoots[tree].rootNode) + 1)
+				//			+ 1))
+				//		+ 1))
+				//	+ 1))
+				//	+ 1))
+				//	+ 3)) > 0);
+				//resultColor = vec3(voxelIndices[tree] > 0ul);
 				hitDist = dist;
 			}
 		}
