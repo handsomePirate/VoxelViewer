@@ -301,7 +301,7 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::Create("Voxel Pages Storage Buffer", deviceInfo,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		pagesBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, uploadInfo.PagesStorageBuffer);
-	CoreLogInfo("Page table size (MB): %f", uploadInfo.PagesStorageBuffer.Size / 1048576.f);
+	CoreLogInfo("Page pool size (MB): %f", uploadInfo.PagesStorageBuffer.Size / 1048576.f);
 
 	// TODO: Staging buffer.
 	VulkanFactory::Buffer::BufferInfo pagesStagingBufferInfo;

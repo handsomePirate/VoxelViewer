@@ -83,7 +83,7 @@ uint GetNodeChildMask(uint vptr)
 uint GetChildNode(uint node, uint nextChild, uint childMask)
 {
 	uint offset = bitCount(childMask & ((1u << nextChild) - 1u)) + 1;
-	return PagePoolElement(Translate(node) + offset);
+	return PagePoolElement(Translate(node) + ((offset - 1) << 1u) + 1);
 }
 
 uint GetFirstLeafMask(uint leafPart1, uint leafPart2)

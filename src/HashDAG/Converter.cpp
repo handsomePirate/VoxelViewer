@@ -58,14 +58,16 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 
 	for (int i = 0; i < roots.size(); ++i)
 	{
+		uint64_t voxelIndex = 0;
 		// TODO: Get the position of the L1 node so that the Hash tree is able to retain that information.
 #ifdef DEBUG_CONVERTER
 		AxisAlignedCubeI treebbox;
-		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, 0, false, 1, treebbox);
+		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, voxelIndex, 0, false, 1, treebbox);
 #else
-		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, 0, false, 1);
+		uint32_t rootPtr = ConstructHashDAG(trackingCube, roots[i], hd, voxelIndex, 0, false, 1);
 #endif
 		assert(rootPtr != HTConstants::INVALID_POINTER);
+		assert(voxelIndex == roots[i]->onVoxelCount());
 		auto bbox = roots[i]->getNodeBoundingBox();
 		hd.AddRoot(rootPtr, { bbox.getStart().x(), bbox.getStart().y(), bbox.getStart().z() });
 	}
@@ -79,7 +81,7 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 	int level, bool full, int depth, const AxisAlignedCubeI& treebbox)
 #else
 uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube,
-	void* nodeIn, HashDAG& hd,
+	void* nodeIn, HashDAG& hd, uint64_t& voxelIndex,
 	int level, bool full, int depth)
 #endif
 {
@@ -122,9 +124,9 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 				}
 			}
 #ifdef DEBUG_CONVERTER
-			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, level, full, node, depth, newTreebbox);
+			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth, newTreebbox);
 #else
-			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, level, full, node, depth);
+			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth);
 #endif
 		}
 		else
@@ -157,9 +159,9 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 				}
 			}
 #ifdef DEBUG_CONVERTER
-			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, level, full, node, depth, treebbox);
+			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth, treebbox);
 #else
-			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, level, full, node, depth);
+			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, voxelIndex, level, full, node, depth);
 #endif
 		}
 		else
@@ -182,7 +184,7 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 #endif
 			std::vector<uint32_t> node;
 			node.push_back(0);
-
+			uint64_t parentIndex = voxelIndex;
 			for (int i = 0; i < 8; ++i)
 			{
 				uint64_t leafMask = 0;
@@ -288,6 +290,8 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 				{
 					node[0] |= 1 << i;
 					node.push_back(hd.FindOrAddLeaf(leafMask));
+					node.push_back(uint32_t(voxelIndex - parentIndex));
+					voxelIndex += __popcnt64(leafMask);
 				}
 			}
 

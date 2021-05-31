@@ -19,8 +19,8 @@ namespace OpenVDBUtils
 		}
 		loadFile.close();
 
-		openvdb::Vec3SGrid::Ptr gridptr = openvdb::gridPtrCast<openvdb::Vec3SGrid>(baseGrid);
+		openvdb::Vec3SGrid::Ptr grid = openvdb::gridPtrCast<openvdb::Vec3SGrid>(baseGrid);
 
-		return gridptr;
+		return grid;
 	}
 }
