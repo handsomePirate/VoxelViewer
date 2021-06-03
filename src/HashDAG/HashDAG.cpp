@@ -995,7 +995,7 @@ uint32_t HashDAG::GetSecondVoxelCount(uint32_t mask, uint32_t nextChild) const
 }
 
 void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
-	VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo)
+	VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo, float colorCompressionMargin)
 {
 	ht_.UploadToGPU(deviceInfo, commandPool, queue, uploadInfo);
 
@@ -1018,57 +1018,186 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 
 	VulkanFactory::Buffer::Destroy(deviceInfo, treesStagingBufferInfo);
 
-	VkDeviceSize colorsBufferSize = 0;
-	VkDeviceSize colorOffsetsBufferSize = (VkDeviceSize)treeColorArrays_.size() * sizeof(uint64_t);
-	for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+	if (colorCompressionMargin > 0.f)
 	{
-		colorsBufferSize += treeColorArrays_[tree]->GetBufferSize();
+		for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+		{
+			treeColorArrays_[tree]->CompressSimilar(colorCompressionMargin);
+		}
+
+		VkDeviceSize colorsBufferSize = 0;
+		VkDeviceSize colorOffsetsBufferSize = (VkDeviceSize)treeColorArrays_.size() * sizeof(uint64_t);
+		VkDeviceSize indexBufferSize = 0;
+		VkDeviceSize indexOffsetsBufferSize = (VkDeviceSize)treeColorArrays_.size() * sizeof(uint64_t);
+
+		for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+		{
+			colorsBufferSize += treeColorArrays_[tree]->GetBufferSizeCompressed();
+			indexBufferSize += treeColorArrays_[tree]->GetBufferSizeIndices();
+		}
+
+		// GPU buffers.
+
+		VulkanFactory::Buffer::Create("Colors Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			colorsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorsStorageBuffer);
+		CoreLogInfo("Color buffer size (MB): %f", colorInfo.ColorsStorageBuffer.Size / 1048576.f);
+
+		VulkanFactory::Buffer::Create("Color Indices Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			indexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorIndicesStorageBuffer);
+		CoreLogInfo("Color index buffer size (MB): %f", colorInfo.ColorIndicesStorageBuffer.Size / 1048576.f);
+
+		VulkanFactory::Buffer::Create("Color Offsets Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			colorOffsetsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorOffsetsStorageBuffer);
+		CoreLogInfo("Color offsets buffer size (MB): %f", colorInfo.ColorOffsetsStorageBuffer.Size / 1048576.f);
+
+		VulkanFactory::Buffer::Create("Color Index Offsets Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			indexOffsetsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorIndexOffsetsStorageBuffer);
+		CoreLogInfo("Color index offsets buffer size (MB): %f", colorInfo.ColorIndexOffsetsStorageBuffer.Size / 1048576.f);
+
+		// Staging buffers.
+
+		VulkanFactory::Buffer::BufferInfo colorsStagingBufferInfo;
+		VulkanFactory::Buffer::Create("Colors Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, colorsBufferSize,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, colorsStagingBufferInfo);
+
+		VulkanFactory::Buffer::BufferInfo indexStagingBufferInfo;
+		VulkanFactory::Buffer::Create("Color Indices Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, indexBufferSize,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexStagingBufferInfo);
+
+		VulkanFactory::Buffer::BufferInfo colorOffsetsStagingBufferInfo;
+		VulkanFactory::Buffer::Create("Color Offsets Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			colorOffsetsBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			colorOffsetsStagingBufferInfo);
+
+		VulkanFactory::Buffer::BufferInfo indexOffsetsStagingBufferInfo;
+		VulkanFactory::Buffer::Create("Color Index Offsets Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			indexOffsetsBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			indexOffsetsStagingBufferInfo);
+
+		// Copying into staging buffers.
+
+		VkDeviceSize cumulativeSize = 0;
+		VkDeviceSize previousTreeSize = 0;
+		for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+		{
+			VkDeviceSize treeSize = treeColorArrays_[tree]->GetBufferSizeCompressed();
+
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.Memory, treeSize,
+				treeColorArrays_[tree]->GetDataPointerCompressed(), cumulativeSize);
+
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.Memory, sizeof(uint64_t),
+				&previousTreeSize, tree * sizeof(uint64_t));
+
+			previousTreeSize += treeSize / sizeof(openvdb::Vec4s);
+
+			cumulativeSize += treeSize;
+		}
+
+		cumulativeSize = 0;
+		previousTreeSize = 0;
+		for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+		{
+			VkDeviceSize treeSize = treeColorArrays_[tree]->GetBufferSizeIndices();
+
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, indexStagingBufferInfo.Memory, treeSize,
+				treeColorArrays_[tree]->GetDataPointerIndices(), cumulativeSize);
+
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, indexOffsetsStagingBufferInfo.Memory, sizeof(uint64_t),
+				&previousTreeSize, tree * sizeof(uint64_t));
+
+			previousTreeSize += treeSize / sizeof(Color::index_t);
+
+			cumulativeSize += treeSize;
+		}
+
+		// Copying into GPU buffers.
+
+		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.DescriptorBufferInfo.buffer,
+			colorInfo.ColorsStorageBuffer.DescriptorBufferInfo.buffer, colorsBufferSize, commandPool, queue);
+
+		VulkanUtils::Buffer::Copy(deviceInfo.Handle, indexStagingBufferInfo.DescriptorBufferInfo.buffer,
+			colorInfo.ColorIndicesStorageBuffer.DescriptorBufferInfo.buffer, indexBufferSize, commandPool, queue);
+
+		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.DescriptorBufferInfo.buffer,
+			colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo.buffer, colorOffsetsBufferSize, commandPool, queue);
+
+		VulkanUtils::Buffer::Copy(deviceInfo.Handle, indexOffsetsStagingBufferInfo.DescriptorBufferInfo.buffer,
+			colorInfo.ColorIndexOffsetsStorageBuffer.DescriptorBufferInfo.buffer, indexOffsetsBufferSize, commandPool, queue);
+
+		// Destroying staging buffers.
+
+		VulkanFactory::Buffer::Destroy(deviceInfo, colorsStagingBufferInfo);
+		VulkanFactory::Buffer::Destroy(deviceInfo, colorOffsetsStagingBufferInfo);
+
+		VulkanFactory::Buffer::Destroy(deviceInfo, indexStagingBufferInfo);
+		VulkanFactory::Buffer::Destroy(deviceInfo, indexOffsetsStagingBufferInfo);
 	}
-
-	VulkanFactory::Buffer::Create("Colors Storage Buffer", deviceInfo,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		colorsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorsStorageBuffer);
-	CoreLogInfo("Color buffer size (MB): %f", colorInfo.ColorsStorageBuffer.Size / 1048576.f);
-
-	VulkanFactory::Buffer::BufferInfo colorsStagingBufferInfo;
-	VulkanFactory::Buffer::Create("Colors Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, colorsBufferSize,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, colorsStagingBufferInfo);
-
-	VulkanFactory::Buffer::Create("Color Offsets Storage Buffer", deviceInfo,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		colorOffsetsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorOffsetsStorageBuffer);
-	CoreLogInfo("Color offsets buffer size (MB): %f", colorInfo.ColorOffsetsStorageBuffer.Size / 1048576.f);
-
-	VulkanFactory::Buffer::BufferInfo colorOffsetsStagingBufferInfo;
-	VulkanFactory::Buffer::Create("Color Offsets Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		colorOffsetsBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		colorOffsetsStagingBufferInfo);
-
-	VkDeviceSize cumulativeSize = 0;
-	VkDeviceSize previousTreeSize = 0;
-	for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+	else
 	{
-		VkDeviceSize treeSize = treeColorArrays_[tree]->GetBufferSize();
+		VkDeviceSize colorsBufferSize = 0;
+		VkDeviceSize colorOffsetsBufferSize = (VkDeviceSize)treeColorArrays_.size() * sizeof(uint64_t);
+		for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+		{
+			colorsBufferSize += treeColorArrays_[tree]->GetBufferSize();
+		}
 
-		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.Memory, treeSize,
-			treeColorArrays_[tree]->GetDataPointer(), cumulativeSize);
+		VulkanFactory::Buffer::Create("Colors Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			colorsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorsStorageBuffer);
+		CoreLogInfo("Color buffer size (MB): %f", colorInfo.ColorsStorageBuffer.Size / 1048576.f);
 
-		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.Memory, sizeof(uint64_t),
-			&previousTreeSize, tree * sizeof(uint64_t));
+		VulkanFactory::Buffer::BufferInfo colorsStagingBufferInfo;
+		VulkanFactory::Buffer::Create("Colors Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, colorsBufferSize,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, colorsStagingBufferInfo);
 
-		previousTreeSize += treeSize / sizeof(openvdb::Vec4s);
+		VulkanFactory::Buffer::Create("Color Offsets Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			colorOffsetsBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorOffsetsStorageBuffer);
+		CoreLogInfo("Color offsets buffer size (MB): %f", colorInfo.ColorOffsetsStorageBuffer.Size / 1048576.f);
 
-		cumulativeSize += treeSize;
+		VulkanFactory::Buffer::BufferInfo colorOffsetsStagingBufferInfo;
+		VulkanFactory::Buffer::Create("Color Offsets Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			colorOffsetsBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			colorOffsetsStagingBufferInfo);
+
+		VkDeviceSize cumulativeSize = 0;
+		VkDeviceSize previousTreeSize = 0;
+		for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
+		{
+			VkDeviceSize treeSize = treeColorArrays_[tree]->GetBufferSize();
+
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.Memory, treeSize,
+				treeColorArrays_[tree]->GetDataPointer(), cumulativeSize);
+
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.Memory, sizeof(uint64_t),
+				&previousTreeSize, tree * sizeof(uint64_t));
+
+			previousTreeSize += treeSize / sizeof(openvdb::Vec4s);
+
+			cumulativeSize += treeSize;
+		}
+
+		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.DescriptorBufferInfo.buffer,
+			colorInfo.ColorsStorageBuffer.DescriptorBufferInfo.buffer, colorsBufferSize, commandPool, queue);
+
+		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.DescriptorBufferInfo.buffer,
+			colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo.buffer, colorOffsetsBufferSize, commandPool, queue);
+
+		VulkanFactory::Buffer::Destroy(deviceInfo, colorsStagingBufferInfo);
+		VulkanFactory::Buffer::Destroy(deviceInfo, colorOffsetsStagingBufferInfo);
+
+		VulkanFactory::Buffer::Create("Color Indices Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			16, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorIndicesStorageBuffer);
+
+		VulkanFactory::Buffer::Create("Color Index Offsets Storage Buffer", deviceInfo,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			16, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorInfo.ColorIndexOffsetsStorageBuffer);
 	}
-
-	VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.DescriptorBufferInfo.buffer,
-		colorInfo.ColorsStorageBuffer.DescriptorBufferInfo.buffer, colorsBufferSize, commandPool, queue);
-
-	VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.DescriptorBufferInfo.buffer,
-		colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo.buffer, colorOffsetsBufferSize, commandPool, queue);
-
-	VulkanFactory::Buffer::Destroy(deviceInfo, colorsStagingBufferInfo);
-	VulkanFactory::Buffer::Destroy(deviceInfo, colorOffsetsStagingBufferInfo);
 }
 
 TraversalPath::TraversalPath()

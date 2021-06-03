@@ -219,7 +219,7 @@ public:
 		const Eigen::Vector3f& perturbationEpsilon = { 1e-5f, 1e-5f, 1e-5f }) const;
 
 	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
-		VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo);
+		VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo, float colorCompressionMargin = 0.f);
 
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).

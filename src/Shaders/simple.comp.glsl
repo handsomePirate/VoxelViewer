@@ -44,7 +44,17 @@ layout(std140, binding = 5) buffer ColorOffsets
 	u64vec2 colorOffsets[];
 };
 
-layout(binding = 6) uniform TracingParameters 
+layout(std140, binding = 6) buffer ColorIndices
+{
+	uvec4 colorIndices[];
+};
+
+layout(std140, binding = 7) buffer ColorIndexOffsets
+{
+	u64vec2 colorIndexOffsets[];
+};
+
+layout(binding = 8) uniform TracingParameters 
 {
 	vec3 cameraPosition;
 	vec3 rayMin;
@@ -167,8 +177,18 @@ uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, 
 
 vec3 GetVoxelColor(int tree, uint64_t voxelIndex)
 {
-	uint64_t colorIndex = colorOffsets[tree / 2][tree % 2] + voxelIndex;
-	return colorArrays[uint(colorIndex)].rgb;
+	if (colorIndexOffsets.length() == 1)
+	{
+		uint64_t colorIndex = colorOffsets[tree / 2][tree % 2] + voxelIndex;
+		return colorArrays[uint(colorIndex)].rgb;
+	}
+	else
+	{
+		uint64_t colorIndex = colorIndexOffsets[tree / 2][tree % 2] + voxelIndex;
+		uint compressedColorIndex = colorIndices[uint(colorIndex) / 4][uint(colorIndex) % 4];
+		uint64_t finalColorIndex = colorOffsets[tree / 2][tree % 2] + compressedColorIndex;
+		return colorArrays[uint(finalColorIndex)].rgb;
+	}
 }
 
 uvec3 PathAscend(uvec3 path, uint levels)

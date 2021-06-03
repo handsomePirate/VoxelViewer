@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
 
 #pragma region OpenVDB init, grid loading, transformation to HashDAG
 	openvdb::initialize();
-	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
+	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/spots.vdb");
 	auto grid = OpenVDBUtils::LoadGrid(gridFile);
 	//openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
 	//auto gridAccessor = grid->getAccessor();
@@ -278,7 +278,8 @@ int main(int argc, char* argv[])
 	HashDAGGPUInfo uploadInfo;
 	ColorGPUInfo colorInfo;
 	auto uploadStart = std::chrono::high_resolution_clock::now();
-	hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo, colorInfo);
+	const float colorCompressionMargin = .08f;
+	hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo, colorInfo, colorCompressionMargin);
 	auto uploadEnd = std::chrono::high_resolution_clock::now();
 	msCount = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEnd - uploadStart).count();
 	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
@@ -317,7 +318,7 @@ int main(int argc, char* argv[])
 	{
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
-		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5),
+		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
 	};
 	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool("Compute and Display Descriptor Pool",
@@ -348,7 +349,11 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
 		VulkanInitializers::DescriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 7),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
 	};
 	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
 		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
@@ -368,14 +373,16 @@ int main(int argc, char* argv[])
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory, sizeof(TracingParameters), &tracingParameters);
 
-	const uint32_t storageBufferCount = 5;
+	const uint32_t storageBufferCount = 7;
 	VkDescriptorBufferInfo storageBuffersDescriptorInfo[storageBufferCount] =
 	{
 		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo,
 		uploadInfo.PagesStorageBuffer.DescriptorBufferInfo,
 		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo,
 		colorInfo.ColorsStorageBuffer.DescriptorBufferInfo,
-		colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo
+		colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo,
+		colorInfo.ColorIndicesStorageBuffer.DescriptorBufferInfo,
+		colorInfo.ColorIndexOffsetsStorageBuffer.DescriptorBufferInfo
 	};
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
 		&renderTarget.DescriptorImageInfo, 1,
@@ -866,6 +873,8 @@ int main(int argc, char* argv[])
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
 
+	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorIndexOffsetsStorageBuffer);
+	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorIndicesStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorOffsetsStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorsStorageBuffer);
 
