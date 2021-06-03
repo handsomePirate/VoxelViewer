@@ -190,6 +190,7 @@ struct NodeInfo
 	uint8_t childMask;
 	/// A mask of the children that are to be visited. This is computed based on the traversal ray.
 	uint8_t visitMask;
+	uint64_t voxelIndex;
 };
 
 class HashDAG
@@ -231,14 +232,17 @@ private:
 	/// Returns the child node of the specified node. Selected 'child' must be included in the child mask of the
 	/// specified node. The 'childMask' argument is included to avoid having to query it from the hash table.
 	HashTable::vptr_t GetChildNode(HashTable::vptr_t node, uint8_t child, uint8_t childMask) const;
+	uint32_t GetChildOffset(HashTable::vptr_t node, uint8_t child, uint8_t childMask) const;
 	/// Computes the mask of all children of a node that would be intersected by the ray.
 	uint8_t ComputeChildIntersectionMask(uint32_t level, const TraversalPath& path,const Eigen::Vector3f& rayOrigin,
 		const Eigen::Vector3f& rayDirection, const Eigen::Vector3f& rayDirectionInverted, float treeScale, bool isRoot = false) const;
 
 	/// Separates the first layer of the child mask of the 4x4x4 leaf and returns it.
 	uint8_t GetFirstLeafMask(uint64_t leaf) const;
+	uint32_t GetFirstVoxelCount(uint64_t leaf, uint32_t nextChild) const;
 	/// Separates the second layer of the child mask of the 4x4x4 leaf using the mask of the first layer and returns it.
 	uint8_t GetSecondLeafMask(uint64_t leaf, uint8_t firstMask) const;
+	uint32_t GetSecondVoxelCount(uint32_t mask, uint32_t nextChild) const;
 
 	HashTable ht_;
 	std::vector<HashTree> trees_;

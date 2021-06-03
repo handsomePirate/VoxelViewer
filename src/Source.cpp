@@ -14,6 +14,7 @@
 #include "HashDAG/OpenVDBUtils.hpp"
 #include "HashDAG/HashDAG.hpp"
 #include "HashDAG/Converter.hpp"
+#include "HashDAG/CPUTrace.hpp"
 #include <imgui.h>
 #include <vector>
 #include <string>
@@ -244,8 +245,29 @@ int main(int argc, char* argv[])
 
 #pragma region OpenVDB init, grid loading, transformation to HashDAG
 	openvdb::initialize();
-	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/example_task_0_solution.vdb");
+	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
 	auto grid = OpenVDBUtils::LoadGrid(gridFile);
+	//openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
+	//auto gridAccessor = grid->getAccessor();
+	//
+	//const int height = 56;
+	//const int width = 8;
+	//for (int z = 0; z < height; ++z)
+	//{
+	//	for (int y = -width / 2; y < width / 2; ++y)
+	//	{
+	//		for (int x = -width / 2; x < width / 2; ++x)
+	//		{
+	//			openvdb::Vec3s color = {
+	//				((x + 1) + width / 2) / float(width),
+	//				((y + 1) + width / 2) / float(width),
+	//				z / float(height)
+	//			};
+	//			gridAccessor.setValue({ x, y, z }, color);
+	//		}
+	//	}
+	//}
+
 	auto hdStart = std::chrono::high_resolution_clock::now();
 	HashDAG hd{};
 	Converter::OpenVDBToDAG(grid, hd);
@@ -266,9 +288,9 @@ int main(int argc, char* argv[])
 
 #pragma region Shaders
 	std::string vertexShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.vert.glsl");
-	VkShaderModule vertexShader = Shader::Compiler::LoadShader(deviceInfo.Handle, vertexShaderPath);;
+	VkShaderModule vertexShader = Shader::Compiler::LoadShader(deviceInfo.Handle, vertexShaderPath);
 	std::string fragmentShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.frag.glsl");
-	VkShaderModule fragmentShader = Shader::Compiler::LoadShader(deviceInfo.Handle, fragmentShaderPath);;
+	VkShaderModule fragmentShader = Shader::Compiler::LoadShader(deviceInfo.Handle, fragmentShaderPath);
 	std::string computeShaderPath = CoreFilesystem.GetAbsolutePath("../../src/Shaders/simple.comp.glsl");
 	VkShaderModule computeShader = Shader::Compiler::LoadShader(deviceInfo.Handle, computeShaderPath);
 
@@ -359,6 +381,13 @@ int main(int argc, char* argv[])
 		&renderTarget.DescriptorImageInfo, 1,
 		storageBuffersDescriptorInfo, storageBufferCount,
 		&tracingUniformBuffer.DescriptorBufferInfo, 1);
+
+
+	//uint8_t* imageData = new uint8_t[4 * windowWidth * windowHeight];
+	//MakeImage(tracingParameters, windowWidth, windowHeight, hd, imageData);
+	//delete[] imageData;
+	//Eigen::Vector3i hitVoxel;
+	//hd.CastRay({ 2, -512, 0 }, Eigen::Vector3f(-1, 512, 0).normalized(), hitVoxel);
 #pragma endregion
 
 #pragma region Pipelines

@@ -176,17 +176,22 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 		// TODO: Add colors.
 		openvdb::Vec3SGrid::TreeType::LeafNodeType* leaf = (openvdb::Vec3SGrid::TreeType::LeafNodeType*)nodeIn;
 
-		for (auto it = leaf->beginValueAll(); it != leaf->endValueAll(); ++it)
-		{
-			it;
-		}
 		if (leaf)
 		{
+			std::vector<openvdb::Vec3s> leafColors;
+			leafColors.resize(512);
+			int index = 0;
+			for (auto colorIt = leaf->beginValueAll(); colorIt != leaf->endValueAll(); ++colorIt)
+			{
+				//CoreLogInfo("%i: (%f, %f, %f)", index, colorIt->x(), colorIt->y(), colorIt->z());
+				leafColors[index++] = *colorIt;
+			}
+
 #ifdef DEBUG_CONVERTER
 			auto bbox = leaf->getNodeBoundingBox();
 			std::stringstream ss;
 			ss << bbox << " |X| " << treebbox;
-			LogMessage("leaf: %s", ss.str().c_str());
+			CoreLogInfo("leaf: %s", ss.str().c_str());
 #endif
 			std::vector<uint32_t> node;
 			node.push_back(0);
@@ -194,6 +199,7 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 			for (int i = 0; i < 8; ++i)
 			{
 				uint64_t leafMask = 0;
+				uint64_t result = 0;
 				if (full)
 				{
 					leafMask = 0xFFFFFFFFFFFFFFFF;
@@ -236,7 +242,6 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 						firstHalf = false;
 					}
 
-					uint64_t result = 0;
 					int byteShift = -1;
 					for (int maskByteid = maskWordStart; maskByteid < maskWordStart + 32; ++maskByteid)
 					{
@@ -300,44 +305,48 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 
 					static uint32_t zOffset[8] =
 					{
-						0, 4, 0, 4, 0, 4, 0, 4
+						0, 1, 0, 1, 0, 1, 0, 1
 					};
 					static uint32_t yOffset[8] =
 					{
-						0, 0, 4, 4, 0, 0, 4, 4
+						0, 0, 1, 1, 0, 0, 1, 1
 					};
 					static uint32_t xOffset[8] =
 					{
-						0, 0, 0, 0, 4, 4, 4, 4
+						0, 0, 0, 0, 1, 1, 1, 1
 					};
 
-					for (uint32_t xLeaf = 0; xLeaf < 4; ++xLeaf)
+					uint64_t voxelSum = 0;
+					for (uint32_t leafPart = 0; leafPart < 8; ++leafPart)
 					{
-						for (uint32_t yLeaf = 0; yLeaf < 4; ++yLeaf)
+						for (uint32_t xLeaf = 0; xLeaf < 2; ++xLeaf)
 						{
-							for (uint32_t zLeaf = 0; zLeaf < 4; ++zLeaf)
+							for (uint32_t yLeaf = 0; yLeaf < 2; ++yLeaf)
 							{
-								const uint64_t leafBit = 1ull << (zLeaf + 4 * yLeaf + 16 * xLeaf);
-								if (leafBit & leafMask)
+								for (uint32_t zLeaf = 0; zLeaf < 2; ++zLeaf)
 								{
-									const uint32_t allValueIndex = zLeaf + zOffset[i] + yLeaf + yOffset[i] + xLeaf + xOffset[i];
+									const uint64_t leafBit = 1ull << (
+										zLeaf + zOffset[leafPart] * 2 +
+										4 * (yLeaf + yOffset[leafPart] * 2) +
+										16 * (xLeaf + xOffset[leafPart] * 2));
 
-									int val = 0;
-									auto it = leaf->beginValueAll();
-									while (val < allValueIndex)
+									if (leafBit & result)
 									{
-										++it;
-										++val;
+										const uint32_t allValueIndex =
+											zLeaf + zOffset[i] * 4 + zOffset[leafPart] * 2 +
+											8 * (yLeaf + yOffset[i] * 4 + yOffset[leafPart] * 2) +
+											64 * (xLeaf + xOffset[i] * 4 + xOffset[leafPart] * 2);
+
+										uint64_t colorVoxelIndex = voxelIndex + voxelSum++;
+										hdColors.Set(colorVoxelIndex, leafColors[allValueIndex]);
 									}
-									
-									uint64_t colorVoxelIndex = voxelIndex + __popcnt64((leafBit - 1) & leafMask);
-									hdColors.Set(colorVoxelIndex, *it);
 								}
 							}
 						}
 					}
 
-					voxelIndex += __popcnt64(leafMask);
+					assert(voxelSum == __popcnt64(leafMask));
+					voxelIndex += voxelSum;
 				}
 			}
 

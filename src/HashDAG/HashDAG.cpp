@@ -586,6 +586,7 @@ bool HashDAG::CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& di
 		stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
 		stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, path, rayPosition, altDirection,
 			invDirection, 1 /*TODO: the scale will depend on the size of the voxels*/, true);
+		stack[level].voxelIndex = 0;
 
 		// Traversal.
 		while (true)
@@ -642,6 +643,11 @@ bool HashDAG::CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& di
 
 			if (level == HTConstants::MAX_LEVEL_COUNT)
 			{
+				stack[level].voxelIndex = stack[level - 1].voxelIndex + GetSecondVoxelCount(stack[level].childMask, nextChild);
+			}
+
+			if (level == HTConstants::MAX_LEVEL_COUNT)
+			{
 				// We have intersected a voxel and we have the path to it.
 				break;
 			}
@@ -653,20 +659,26 @@ bool HashDAG::CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& di
 				stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
 				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, path, rayPosition, altDirection,
 					invDirection, 1 /*TODO: the scale will depend on the size of the voxels*/);
+				stack[level].voxelIndex = stack[level - 1].voxelIndex +
+					GetChildOffset(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 			}
 			else
 			{
 				uint8_t childMask;
+				uint64_t voxelIndex;
 
 				if (level == HTConstants::LEAF_LEVEL)
 				{
 					HashTable::vptr_t leafPtr = GetChildNode(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 					cachedLeaf = GetLeaf(leafPtr);
 					childMask = GetFirstLeafMask(cachedLeaf);
+					stack[level].voxelIndex = stack[level - 1].voxelIndex +
+						GetChildOffset(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 				}
 				else
 				{
 					childMask = GetSecondLeafMask(cachedLeaf, nextChild);
+					stack[level].voxelIndex = stack[level - 1].voxelIndex + GetFirstVoxelCount(cachedLeaf, nextChild);
 				}
 
 				stack[level].childMask = childMask;
@@ -744,8 +756,19 @@ HashTable::vptr_t HashDAG::GetChildNode(HashTable::vptr_t node, uint8_t child, u
 	// Right side of the &: Get all of the bits on the right of the bit of the current child.
 	// ANDing this with the 'childMask' and counting the set bits gets the number of 32-bit child entries
 	// before the one we want.
-	uint32_t offset = __popcnt(childMask & ((1u << child) - 1u)) + 1;
-	return *(ht_.Translate(node) + offset);
+	uint32_t offset = __popcnt(childMask & ((1u << child) - 1u));
+	return *(ht_.Translate(node) + (offset << 1) + 1);
+}
+
+uint32_t HashDAG::GetChildOffset(HashTable::vptr_t node, uint8_t child, uint8_t childMask) const
+{
+	assert(GetNodeChildMask(node) == childMask);
+	assert(childMask & (1u << child));
+	// Right side of the &: Get all of the bits on the right of the bit of the current child.
+	// ANDing this with the 'childMask' and counting the set bits gets the number of 32-bit child entries
+	// before the one we want.
+	uint32_t offset = __popcnt(childMask & ((1u << child) - 1u));
+	return *(ht_.Translate(node) + ((offset + 1) << 1));
 }
 
 uint8_t HashDAG::ComputeChildIntersectionMask(uint32_t level, const TraversalPath& path, const Eigen::Vector3f& rayOrigin,
@@ -932,10 +955,43 @@ uint8_t HashDAG::GetFirstLeafMask(uint64_t leaf) const
 		((leaf & 0xFF00000000000000) == 0 ? 0 : 1 << 7));
 }
 
+uint32_t HashDAG::GetFirstVoxelCount(uint64_t leaf, uint32_t nextChild) const
+{
+	uint32_t leaf1 = uint32_t(leaf & 0x00000000FFFFFFFFul);
+	uint32_t leaf2 = uint32_t((leaf & 0xFFFFFFFF00000000ul) >> 32);
+
+	uint32_t mask1 = uint32_t(
+		((nextChild == 0) ? 0x00000000 : 0) |
+		((nextChild == 1) ? 0x000000FF : 0) |
+		((nextChild == 2) ? 0x0000FFFF : 0) |
+		((nextChild == 3) ? 0x00FFFFFF : 0) |
+		((nextChild == 4) ? 0xFFFFFFFF : 0) |
+		((nextChild == 5) ? 0xFFFFFFFF : 0) |
+		((nextChild == 6) ? 0xFFFFFFFF : 0) |
+		((nextChild == 7) ? 0xFFFFFFFF : 0));
+
+	uint32_t mask2 = uint32_t(
+		((nextChild == 0) ? 0x00000000 : 0) |
+		((nextChild == 1) ? 0x00000000 : 0) |
+		((nextChild == 2) ? 0x00000000 : 0) |
+		((nextChild == 3) ? 0x00000000 : 0) |
+		((nextChild == 4) ? 0x00000000 : 0) |
+		((nextChild == 5) ? 0x000000FF : 0) |
+		((nextChild == 6) ? 0x0000FFFF : 0) |
+		((nextChild == 7) ? 0x00FFFFFF : 0));
+
+	return __popcnt(leaf1 & mask1) + __popcnt(leaf2 & mask2);
+}
+
 uint8_t HashDAG::GetSecondLeafMask(uint64_t leaf, uint8_t firstMask) const
 {
 	const uint8_t shift = uint8_t(firstMask * 8);
 	return uint8_t(leaf >> shift);
+}
+
+uint32_t HashDAG::GetSecondVoxelCount(uint32_t mask, uint32_t nextChild) const
+{
+	return __popcnt(mask & ((1u << nextChild) - 1));
 }
 
 void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
@@ -989,6 +1045,7 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 		colorOffsetsStagingBufferInfo);
 
 	VkDeviceSize cumulativeSize = 0;
+	VkDeviceSize previousTreeSize = 0;
 	for (int tree = 0; tree < treeColorArrays_.size(); ++tree)
 	{
 		VkDeviceSize treeSize = treeColorArrays_[tree]->GetBufferSize();
@@ -997,7 +1054,9 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 			treeColorArrays_[tree]->GetDataPointer(), cumulativeSize);
 
 		VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorOffsetsStagingBufferInfo.Memory, sizeof(uint64_t),
-			&treeSize, tree * sizeof(uint64_t));
+			&previousTreeSize, tree * sizeof(uint64_t));
+
+		previousTreeSize += treeSize / sizeof(openvdb::Vec4s);
 
 		cumulativeSize += treeSize;
 	}
