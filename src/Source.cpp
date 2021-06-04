@@ -15,6 +15,7 @@
 #include "HashDAG/HashDAG.hpp"
 #include "HashDAG/Converter.hpp"
 #include "HashDAG/CPUTrace.hpp"
+#include "Vulkan/CuttingPlanes.hpp"
 #include <imgui.h>
 #include <vector>
 #include <string>
@@ -245,7 +246,7 @@ int main(int argc, char* argv[])
 
 #pragma region OpenVDB init, grid loading, transformation to HashDAG
 	openvdb::initialize();
-	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/spots.vdb");
+	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
 	auto grid = OpenVDBUtils::LoadGrid(gridFile);
 	//openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
 	//auto gridAccessor = grid->getAccessor();
@@ -285,6 +286,24 @@ int main(int argc, char* argv[])
 	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
 #pragma endregion
 
+#pragma region Cutting planes
+	VkDeviceSize cuttingPlanesBufferSize = sizeof(CuttingPlanes);
+	VulkanFactory::Buffer::BufferInfo cuttingPlanesBuffer;
+	CuttingPlanes cuttingPlanes{};
+	cuttingPlanes.xMin = float(hd.Left() - 1);
+	cuttingPlanes.xMax = float(hd.Right() + 1);
+	cuttingPlanes.yMin = float(hd.Back() - 1);
+	cuttingPlanes.yMax = float(hd.Front() + 1);
+	cuttingPlanes.zMin = float(hd.Bottom() - 1);
+	cuttingPlanes.zMax = float(hd.Top() + 1);
+
+	VulkanFactory::Buffer::Create("Cutting Planes Uniform Buffer", deviceInfo,
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT , cuttingPlanesBufferSize,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, cuttingPlanesBuffer);
+
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, cuttingPlanesBuffer.Memory, cuttingPlanesBufferSize, &cuttingPlanes);
+#pragma endregion
+
 	//=========================== Shaders and rendering structures ===================
 
 #pragma region Shaders
@@ -319,7 +338,7 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7),
-		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2),
 	};
 	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool("Compute and Display Descriptor Pool",
 		deviceInfo.Handle, descriptorPoolSizes.data(), (uint32_t)descriptorPoolSizes.size(), 3);
@@ -354,6 +373,8 @@ int main(int argc, char* argv[])
 			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 7),
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
 	};
 	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
 		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
@@ -384,10 +405,16 @@ int main(int argc, char* argv[])
 		colorInfo.ColorIndicesStorageBuffer.DescriptorBufferInfo,
 		colorInfo.ColorIndexOffsetsStorageBuffer.DescriptorBufferInfo
 	};
+	const uint32_t uniformBufferCount = 2;
+	VkDescriptorBufferInfo uniformBuffersDescriptorInfo[uniformBufferCount] =
+	{
+		cuttingPlanesBuffer.DescriptorBufferInfo,
+		tracingUniformBuffer.DescriptorBufferInfo
+	};
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
 		&renderTarget.DescriptorImageInfo, 1,
 		storageBuffersDescriptorInfo, storageBufferCount,
-		&tracingUniformBuffer.DescriptorBufferInfo, 1);
+		uniformBuffersDescriptorInfo, uniformBufferCount);
 
 
 	//uint8_t* imageData = new uint8_t[4 * windowWidth * windowHeight];
@@ -659,6 +686,8 @@ int main(int argc, char* argv[])
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
+				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cuttingPlanesBuffer.Memory,
+					cuttingPlanesBufferSize, &cuttingPlanes);
 
 				lastMouseX = mouseX;
 				lastMouseY = mouseY;
@@ -669,7 +698,7 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes);
 			}
 			
 			if (shouldResize)
@@ -682,6 +711,8 @@ int main(int argc, char* argv[])
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
+				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cuttingPlanesBuffer.Memory,
+					cuttingPlanesBufferSize, &cuttingPlanes);
 
 				for (uint32_t f = 0; f < framebuffers.size(); ++f)
 				{
@@ -716,7 +747,7 @@ int main(int argc, char* argv[])
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes);
 			}
 			
 			{
@@ -872,6 +903,8 @@ int main(int argc, char* argv[])
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, computeShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, fragmentShader);
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, vertexShader);
+
+	VulkanFactory::Buffer::Destroy(deviceInfo, cuttingPlanesBuffer);
 
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorIndexOffsetsStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorIndicesStorageBuffer);

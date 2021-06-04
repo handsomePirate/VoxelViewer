@@ -221,6 +221,17 @@ public:
 	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo, float colorCompressionMargin = 0.f);
 
+	void SetBoundingBox(const BoundingBox& boundingBox);
+
+	int Bottom() const;
+	int Top() const;
+
+	int Left() const;
+	int Right() const;
+
+	int Back() const;
+	int Front() const;
+
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).
 	bool Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t level, const BoundingBox& bbox) const;
@@ -247,4 +258,5 @@ private:
 	HashTable ht_;
 	std::vector<HashTree> trees_;
 	std::vector<std::unique_ptr<Color>> treeColorArrays_;
+	BoundingBox boundingBox_;
 };

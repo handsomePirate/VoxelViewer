@@ -1200,6 +1200,41 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 	}
 }
 
+void HashDAG::SetBoundingBox(const BoundingBox& boundingBox)
+{
+	boundingBox_ = boundingBox;
+}
+
+int HashDAG::Bottom() const
+{
+	return boundingBox_.pos.z();
+}
+
+int HashDAG::Top() const
+{
+	return boundingBox_.pos.z() + boundingBox_.span.z();
+}
+
+int HashDAG::Left() const
+{
+	return boundingBox_.pos.x();
+}
+
+int HashDAG::Right() const
+{
+	return boundingBox_.pos.z() + boundingBox_.span.x();
+}
+
+int HashDAG::Back() const
+{
+	return boundingBox_.pos.y();
+}
+
+int HashDAG::Front() const
+{
+	return boundingBox_.pos.y() + boundingBox_.span.y();
+}
+
 TraversalPath::TraversalPath()
 	: x_(UINT32_MAX), y_(UINT32_MAX), z_(UINT32_MAX) {}
 

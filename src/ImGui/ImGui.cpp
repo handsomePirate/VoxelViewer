@@ -91,8 +91,10 @@ void GUI::Renderer::Shutdown()
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
-	TracingParameters& tracingParameters)
+	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes)
 {
+	static CuttingPlanes cuttingPlanesMinMax = cuttingPlanes;
+
 	float deltaTimeSeconds = renderTimeDelta * .001f;
 	ImGuiIO& io = ImGui::GetIO();
 	io.DisplaySize = ImVec2((float)window->GetWidth(), (float)window->GetHeight());
@@ -163,6 +165,15 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		ImGui::SliderInt("voxel detail", &tracingParameters.VoxelDetail, 1, HTConstants::MAX_LEVEL_COUNT);
 
 		ImGui::SliderFloat("color scale", &tracingParameters.ColorScale, .01f, .1f);
+
+		ImGui::Separator();
+
+		ImGui::SliderFloat("x min plane", &cuttingPlanes.xMin, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
+		ImGui::SliderFloat("x max plane", &cuttingPlanes.xMax, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
+		ImGui::SliderFloat("y min plane", &cuttingPlanes.yMin, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
+		ImGui::SliderFloat("y max plane", &cuttingPlanes.yMax, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
+		ImGui::SliderFloat("z min plane", &cuttingPlanes.zMin, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
+		ImGui::SliderFloat("z max plane", &cuttingPlanes.zMax, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
 
 		Core::LoggerType resultingTypes = (Core::LoggerType)
 			((guiLogger ? (int)Core::LoggerType::ImGui : 0) |

@@ -56,6 +56,15 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 	trackingCube.pos = { 0, 0, 0 };
 	trackingCube.span = { 32, 32, 32 };
 
+	auto bbox = grid->evalActiveVoxelBoundingBox();
+	BoundingBox hdBoundingBox;
+	auto bboxStart = bbox.getStart();
+	auto bboxEnd = bbox.getEnd();
+	auto bboxSpan = bboxEnd - bboxStart;
+	hdBoundingBox.pos = { bboxStart.x(), bboxStart.y(), bboxStart.z() };
+	hdBoundingBox.span = { bboxSpan.x(), bboxSpan.y(), bboxSpan.z() };
+	hd.SetBoundingBox(hdBoundingBox);
+
 	for (int i = 0; i < roots.size(); ++i)
 	{
 		uint64_t voxelIndex = 0;

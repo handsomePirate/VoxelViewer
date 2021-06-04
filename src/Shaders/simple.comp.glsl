@@ -54,7 +54,17 @@ layout(std140, binding = 7) buffer ColorIndexOffsets
 	u64vec2 colorIndexOffsets[];
 };
 
-layout(binding = 8) uniform TracingParameters 
+layout(std140, binding = 8) uniform CuttingPlanes
+{
+	float xMin;
+	float xMax;
+	float yMin;
+	float yMax;
+	float zMin;
+	float zMax;
+} cuttingPlanes;
+
+layout(binding = 9) uniform TracingParameters 
 {
 	vec3 cameraPosition;
 	vec3 rayMin;
@@ -225,6 +235,104 @@ float MinCoeff(vec3 v)
 	return min(v.x, min(v.y, v.z));
 }
 
+float rayTMin = 0;
+float rayTMax = 8196;
+
+void CutRay(vec3 rayPos, vec3 rayInv)
+{
+	vec3 cutMax = vec3(cuttingPlanes.xMax, cuttingPlanes.yMax, cuttingPlanes.zMax);
+	vec3 cutMin = vec3(cuttingPlanes.xMin, cuttingPlanes.yMin, cuttingPlanes.zMin);
+	vec3 maxDiff = cutMax - rayPos;
+	vec3 minDiff = cutMin - rayPos;
+
+	vec3 diff1 = vec3(
+		((rayInv.x > 0) ? maxDiff.x : minDiff.x),
+		((rayInv.y > 0) ? maxDiff.y : minDiff.y),
+		((rayInv.z > 0) ? maxDiff.z : minDiff.z));
+
+	vec3 tMax = diff1 * rayInv;
+	rayTMax = min(MinCoeff(tMax), rayTMax);
+
+	vec3 diff2 = vec3(
+		((maxDiff.x < 0) ? maxDiff.x : 0),
+		((maxDiff.y < 0) ? maxDiff.y : 0),
+		((maxDiff.z < 0) ? maxDiff.z : 0));
+
+	vec3 tMin = diff2 * rayInv;
+	rayTMin = max(MaxCoeff(tMin), rayTMin);
+
+	vec3 diff3 = vec3(
+		((minDiff.x > 0) ? minDiff.x : 0),
+		((minDiff.y > 0) ? minDiff.y : 0),
+		((minDiff.z > 0) ? minDiff.z : 0));
+
+	tMin = diff3 * rayInv;
+	rayTMin = max(MaxCoeff(tMin), rayTMin);
+
+	return;
+	/*
+	if (rayInv.x > 0)
+	{
+		float tMax = maxDiff.x * rayInv.x;
+		rayTMax = min(tMax, rayTMax);
+	}
+	if (rayInv.x < 0)
+	{
+		float tMax = minDiff.x * rayInv.x;
+		rayTMax = min(tMax, rayTMax);
+	}
+	if (rayInv.y > 0)
+	{
+		float tMax = maxDiff.y * rayInv.y;
+		rayTMax = min(tMax, rayTMax);
+	}
+	if (rayInv.y < 0)
+	{
+		float tMax = mminDiff.y * rayInv.y;
+		rayTMax = min(tMax, rayTMax);
+	}
+	if (rayInv.z > 0)
+	{
+		float tMax = maxDiff.z * rayInv.z;
+		rayTMax = min(tMax, rayTMax);
+	}
+	if (maxDiff.x < 0)
+	{
+		float tMin = maxDiff.x * rayInv.x;
+		rayTMin = max(tMin, rayTMin);
+	}
+	if (maxDiff.y < 0)
+	{
+		float tMin = maxDiff.y * rayInv.y;
+		rayTMin = max(tMin, rayTMin);
+	}
+	if (maxDiff.z < 0)
+	{
+		float tMin = maxDiff.z * rayInv.z;
+		rayTMin = max(tMin, rayTMin);
+	}
+	*/
+	//svec3 cutMax = vec3(cuttingPlanes.xMax, cuttingPlanes.yMax, cuttingPlanes.zMax);
+	//float tMax = (cutMax.z - rayPos.z) * rayInv.z;
+	//rayTMax = (tMax < 0) ? rayTMax : min(tMax, rayTMax);
+	//vec3 cutMin = vec3(cuttingPlanes.xMin, cuttingPlanes.yMin, cuttingPlanes.zMin);
+	//float tMin = (rayPos.z - cutMin.z) * rayInv.z;
+	//rayTMin = (tMin < 0) ? rayTMin : max(tMin, rayTMin);
+	//if (rayTMax < rayTMin)
+	//{
+	//	float tmp = rayTMin;
+	//	rayTMin = rayTMax;
+	//	rayTMax = tmp;
+	//}
+	//vec3 posDiff = cutMax - rayPos;
+	//posDiff.x = 8196;//(posDiff.x < 0) ? 8196 : posDiff.x;
+	//posDiff.y = 8196;//(posDiff.y < 0) ? 8196 : posDiff.y;
+	//posDiff.z = (posDiff.z < 0) ? 8196 : posDiff.z;
+	//rayTMax = MinCoeff(posDiff * rayInv);
+	//vec3 cutMin = vec3(cuttingPlanes.xMin, cuttingPlanes.yMin, cuttingPlanes.zMin);
+	//rayTMin = MaxCoeff((rayPos - cutMin) / rayDir);
+}
+
 void main()
 {
 	uint pixX = gl_GlobalInvocationID.x;
@@ -232,10 +340,10 @@ void main()
 
 	uint voxelDetail = uint(parameters.voxelDetail);
 
-	// TODO: Here would probably be clipping of the ray.
-
 	vec3 rayDir = normalize(parameters.rayMin + pixX * parameters.rayDDx + pixY * parameters.rayDDy - parameters.cameraPosition);
 	vec3 rayInv = vec3(1.f / rayDir.x, 1.f / rayDir.y, 1.f / rayDir.z);
+
+	CutRay(parameters.cameraPosition, rayInv);
 
 	uint rayChildOrder =
 		(rayDir.x < 0.f ? 4 : 0) +
@@ -406,7 +514,10 @@ uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, 
 		tMax = MinCoeff(pMax);
 	}
 
-	if (isRoot && (tMin >= tMax))
+	tMin = max(tMin, rayTMin);
+	tMax = min(tMax, rayTMax);
+
+	if (tMin >= tMax)
 	{
 		return 0;
 	}
