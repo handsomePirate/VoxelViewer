@@ -587,6 +587,13 @@ void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceS
 	Memory::Unmap(device, memory);
 }
 
+void VulkanUtils::Buffer::GetData(VkDevice device, VkDeviceMemory memory, VkDeviceSize size, void* destination)
+{
+	void* source = Memory::Map(device, memory, 0, size);
+	memcpy(destination, source, size);
+	Memory::Unmap(device, memory);
+}
+
 void VulkanUtils::Buffer::Copy(VkDevice device, VkBuffer source, VkBuffer destination, VkDeviceSize size,
 	VkCommandPool commandPool, VkQueue queue, VkDeviceSize sourceOffset, VkDeviceSize destinationOffset)
 {
@@ -596,6 +603,24 @@ void VulkanUtils::Buffer::Copy(VkDevice device, VkBuffer source, VkBuffer destin
 
 	VkBufferCopy bufferCopy = VulkanInitializers::BufferCopy(size, sourceOffset, destinationOffset);
 	vkCmdCopyBuffer(commandBuffer, source, destination, 1, &bufferCopy);
+
+	CommandBuffer::End(commandBuffer);
+	Queue::Submit(commandBuffer, queue);
+	Queue::WaitIdle(queue);
+	VulkanFactory::CommandBuffer::Free(device, commandPool, commandBuffer);
+}
+
+void VulkanUtils::Buffer::Copy(VkDevice device, VkImage source, VkBuffer destination,
+	VkImageLayout layout, uint32_t width, uint32_t height, VkImageAspectFlags aspect, VkCommandPool commandPool, VkQueue queue,
+	int32_t xOffset, int32_t yOffset)
+{
+	VkCommandBuffer commandBuffer = VulkanFactory::CommandBuffer::AllocatePrimary(
+		"Tmp Image Copy CB", device, commandPool);
+	CommandBuffer::Begin(commandBuffer);
+
+	VkBufferImageCopy bufferImageCopy = VulkanInitializers::BufferImageCopy(aspect, width, height);
+	bufferImageCopy.imageOffset = { xOffset, yOffset, 0 };
+	vkCmdCopyImageToBuffer(commandBuffer, source, layout, destination, 1, &bufferImageCopy);
 
 	CommandBuffer::End(commandBuffer);
 	Queue::Submit(commandBuffer, queue);

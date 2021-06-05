@@ -168,6 +168,8 @@ public:
 	/// Descends one level into the child specified by the argument.
 	void Descend(uint8_t child);
 
+	uint8_t ChildAtLevel(uint32_t level);
+
 	Eigen::Vector3f AsPosition(uint32_t levelRank) const;
 
 	bool IsNull() const;
@@ -221,6 +223,9 @@ public:
 	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, HashDAGGPUInfo& uploadInfo, ColorGPUInfo& colorInfo, float colorCompressionMargin = 0.f);
 
+	void UploadColorRangeToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
+		VkQueue queue, ColorGPUInfo& colorInfo, uint32_t tree, uint64_t offset, uint64_t size, float colorCompressionMargin = 0.f);
+
 	void SetBoundingBox(const BoundingBox& boundingBox);
 
 	int Bottom() const;
@@ -231,6 +236,10 @@ public:
 
 	int Back() const;
 	int Front() const;
+
+	uint64_t ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint32_t z) const;
+
+	void SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::Vec3s& color);
 
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).

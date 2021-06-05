@@ -643,7 +643,7 @@ bool HashDAG::CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& di
 
 			if (level == HTConstants::MAX_LEVEL_COUNT)
 			{
-				stack[level].voxelIndex = stack[level - 1].voxelIndex + GetSecondVoxelCount(stack[level].childMask, nextChild);
+				stack[level - 1].voxelIndex = stack[level - 1].voxelIndex + GetSecondVoxelCount(stack[level - 1].childMask, nextChild);
 			}
 
 			if (level == HTConstants::MAX_LEVEL_COUNT)
@@ -1200,6 +1200,35 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 	}
 }
 
+void HashDAG::UploadColorRangeToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
+	VkQueue queue, ColorGPUInfo& colorInfo, uint32_t tree, uint64_t offset, uint64_t size, float colorCompressionMargin)
+{
+	assert(colorCompressionMargin == 0);
+	VulkanFactory::Buffer::BufferInfo colorsStagingBufferInfo;
+	VulkanFactory::Buffer::Create("Colors Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, colorsStagingBufferInfo);
+
+	VkDeviceSize cumulativeSize = 0;
+	for (uint32_t currentTree = 0; currentTree < treeColorArrays_.size(); ++currentTree)
+	{
+		if (tree == currentTree)
+		{
+			char* colorPtr = (char*)treeColorArrays_[currentTree]->GetDataPointer() + offset;
+			VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.Memory, size, colorPtr);
+			break;
+		}
+
+		VkDeviceSize treeSize = treeColorArrays_[currentTree]->GetBufferSize();
+		cumulativeSize += treeSize;
+	}
+
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, colorsStagingBufferInfo.DescriptorBufferInfo.buffer,
+		colorInfo.ColorsStorageBuffer.DescriptorBufferInfo.buffer, size, commandPool, queue,
+		0, cumulativeSize + offset);
+
+	VulkanFactory::Buffer::Destroy(deviceInfo, colorsStagingBufferInfo);
+}
+
 void HashDAG::SetBoundingBox(const BoundingBox& boundingBox)
 {
 	boundingBox_ = boundingBox;
@@ -1235,6 +1264,36 @@ int HashDAG::Front() const
 	return boundingBox_.pos.y() + boundingBox_.span.y();
 }
 
+uint64_t HashDAG::ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint32_t z) const
+{
+	TraversalPath path{ x, y, z };
+	HashTable::vptr_t node = trees_[tree].rootNode;
+	uint64_t voxelIndex = 0;
+	for (uint32_t level = 0; level < HTConstants::LEAF_LEVEL; ++level)
+	{
+		uint8_t child = path.ChildAtLevel(level);
+		uint8_t childMask = GetNodeChildMask(node);
+		voxelIndex += GetChildOffset(node, child, childMask);
+		node = GetChildNode(node, child, childMask);
+	}
+	
+	uint64_t leaf = GetLeaf(node);
+
+	uint8_t child = path.ChildAtLevel(HTConstants::LEAF_LEVEL);
+	voxelIndex += GetFirstVoxelCount(leaf, child);
+	child = path.ChildAtLevel(HTConstants::LEAF_LEVEL + 1);
+	uint8_t firstMask = GetFirstLeafMask(leaf);
+	uint8_t secondMask = GetSecondLeafMask(leaf, firstMask);
+	voxelIndex += GetSecondVoxelCount(secondMask, child);
+
+	return voxelIndex;
+}
+
+void HashDAG::SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::Vec3s& color)
+{
+	treeColorArrays_[tree]->Set(voxelIndex, color);
+}
+
 TraversalPath::TraversalPath()
 	: x_(UINT32_MAX), y_(UINT32_MAX), z_(UINT32_MAX) {}
 
@@ -1256,6 +1315,17 @@ void TraversalPath::Descend(uint8_t child)
 	x_ |= (child & 0x4u) >> 2;
 	y_ |= (child & 0x2u) >> 1;
 	z_ |= (child & 0x1u) >> 0;
+}
+
+uint8_t TraversalPath::ChildAtLevel(uint32_t level)
+{
+	assert(level <= HTConstants::MAX_LEVEL_COUNT);
+	uint32_t shift = HTConstants::MAX_LEVEL_COUNT - (level + 1);
+	uint8_t result = 0;
+	result |= ((x_ >> shift) & 1u) << 2;
+	result |= ((y_ >> shift) & 1u) << 1;
+	result |= ((z_ >> shift) & 1u) << 0;
+	return result;
 }
 
 Eigen::Vector3f TraversalPath::AsPosition(uint32_t levelRank) const

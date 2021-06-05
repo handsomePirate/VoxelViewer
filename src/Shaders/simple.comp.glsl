@@ -8,8 +8,9 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 layout(binding = 0, rgba8) uniform writeonly image2D resultImage;
+layout(binding = 1, rgba32ui) uniform writeonly uimage2D idImage;
 
-layout(std140, binding = 1) buffer PageTable
+layout(std140, binding = 2) buffer PageTable
 {
 	// The individual data entries need to be aligned by vec4, ivec4 or uvec4 as required by std140.
 	// Other alignment options are not available for arrays (as far as I know).
@@ -17,7 +18,7 @@ layout(std140, binding = 1) buffer PageTable
 	uvec4 pointers[];
 };
 
-layout(std140, binding = 2) buffer Pages
+layout(std140, binding = 3) buffer Pages
 {
 	uvec4 entries[];
 };
@@ -29,32 +30,32 @@ struct TreeRoot
 	uint rootNode;
 };
 
-layout(std140, binding = 3) buffer TreeRoots
+layout(std140, binding = 4) buffer TreeRoots
 {
 	TreeRoot treeRoots[];
 };
 
-layout(std140, binding = 4) buffer Colors
+layout(std140, binding = 5) buffer Colors
 {
 	vec4 colorArrays[];
 };
 
-layout(std140, binding = 5) buffer ColorOffsets
+layout(std140, binding = 6) buffer ColorOffsets
 {
 	u64vec2 colorOffsets[];
 };
 
-layout(std140, binding = 6) buffer ColorIndices
+layout(std140, binding = 7) buffer ColorIndices
 {
 	uvec4 colorIndices[];
 };
 
-layout(std140, binding = 7) buffer ColorIndexOffsets
+layout(std140, binding = 8) buffer ColorIndexOffsets
 {
 	u64vec2 colorIndexOffsets[];
 };
 
-layout(std140, binding = 8) uniform CuttingPlanes
+layout(std140, binding = 9) uniform CuttingPlanes
 {
 	float xMin;
 	float xMax;
@@ -64,7 +65,7 @@ layout(std140, binding = 8) uniform CuttingPlanes
 	float zMax;
 } cuttingPlanes;
 
-layout(binding = 9) uniform TracingParameters 
+layout(binding = 10) uniform TracingParameters 
 {
 	vec3 cameraPosition;
 	vec3 rayMin;
@@ -461,6 +462,7 @@ void main()
 	}
 
 	float hitDist = 3.40282e+038;
+	uvec4 idColor = uvec4(0, 0, 0, 0xFFFFFFFFu);
 	for (int tree = 0; tree < pushConstants.treeCount; ++tree)
 	{
 		if (traversalPaths[tree].x != 0xFFFFFFFF || traversalPaths[tree].y != 0xFFFFFFFF || traversalPaths[tree].z != 0xFFFFFFFF)
@@ -472,6 +474,8 @@ void main()
 				vec3 color = abs(voxelPos) * parameters.colorScale;
 				//resultColor = vec3((3.f * MinCoeff(color) + MaxCoeff(color)) / 4.f);
 				resultColor = /*tree == 7 ? vec3(1, 0, 0) : */GetVoxelColor(tree, voxelIndices[tree]);
+				//resultColor = voxelIndices[tree] == 100 ? vec3(1, 0, 0) : vec3(0);
+				idColor = uvec4(traversalPaths[tree], tree);
 				//resultColor = vec3(
 				//	PagePoolElement(Translate(
 				//	PagePoolElement(Translate(
@@ -491,6 +495,7 @@ void main()
 	}
 
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(resultColor, 1));
+	imageStore(idImage, ivec2(gl_GlobalInvocationID.xy), idColor);
 }
 
 uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv, float treeScale,

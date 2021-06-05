@@ -279,7 +279,7 @@ int main(int argc, char* argv[])
 	HashDAGGPUInfo uploadInfo;
 	ColorGPUInfo colorInfo;
 	auto uploadStart = std::chrono::high_resolution_clock::now();
-	const float colorCompressionMargin = .08f;
+	const float colorCompressionMargin = 0.f;
 	hd.UploadToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, uploadInfo, colorInfo, colorCompressionMargin);
 	auto uploadEnd = std::chrono::high_resolution_clock::now();
 	msCount = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEnd - uploadStart).count();
@@ -325,11 +325,28 @@ int main(int argc, char* argv[])
 	VulkanFactory::Image::ImageInfo2 renderTarget;
 	VulkanFactory::Image::Create("Compute Texture Target", deviceInfo, targetWidth, targetHeight, VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, renderTarget);
+	VulkanFactory::Image::ImageInfo2 idTarget;
+	VulkanFactory::Image::Create("Compute ID Target", deviceInfo, targetWidth, targetHeight, VK_FORMAT_R32G32B32A32_UINT,
+		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT, idTarget);
 
 	auto subresourceRangeInitializer = VulkanInitializers::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
 	VulkanUtils::Image::TransitionLayout(deviceInfo.Handle, renderTarget.Image, renderTarget.DescriptorImageInfo.imageLayout,
 		VK_IMAGE_LAYOUT_GENERAL, subresourceRangeInitializer, graphicsCommandPool, graphicsQueue);
 	renderTarget.DescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+	VulkanUtils::Image::TransitionLayout(deviceInfo.Handle, idTarget.Image, idTarget.DescriptorImageInfo.imageLayout,
+		VK_IMAGE_LAYOUT_GENERAL, subresourceRangeInitializer, graphicsCommandPool, graphicsQueue);
+	idTarget.DescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+	struct ImageQueryResult
+	{
+		uint32_t x, y, z, tree;
+	} imageQueryResult{};
+
+	VulkanFactory::Buffer::BufferInfo idStagingBufferInfo;
+	VkDeviceSize idUploadSize = sizeof(ImageQueryResult);
+	VulkanFactory::Buffer::Create("ID Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_DST_BIT, idUploadSize,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, idStagingBufferInfo);
 #pragma endregion
 
 #pragma region Descriptors
@@ -358,7 +375,7 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0),
 		VulkanInitializers::DescriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
 		VulkanInitializers::DescriptorSetLayoutBinding(
@@ -372,9 +389,11 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 7),
 		VulkanInitializers::DescriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 10),
 	};
 	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
 		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
@@ -394,6 +413,12 @@ int main(int argc, char* argv[])
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory, sizeof(TracingParameters), &tracingParameters);
 
+	const uint32_t targetImageCount = 2;
+	VkDescriptorImageInfo targetImagesDescriptorInfo[targetImageCount] =
+	{
+		renderTarget.DescriptorImageInfo,
+		idTarget.DescriptorImageInfo
+	};
 	const uint32_t storageBufferCount = 7;
 	VkDescriptorBufferInfo storageBuffersDescriptorInfo[storageBufferCount] =
 	{
@@ -412,7 +437,7 @@ int main(int argc, char* argv[])
 		tracingUniformBuffer.DescriptorBufferInfo
 	};
 	VulkanUtils::Descriptor::WriteComputeSet(deviceInfo.Handle, computeSet, 
-		&renderTarget.DescriptorImageInfo, 1,
+		targetImagesDescriptorInfo, targetImageCount,
 		storageBuffersDescriptorInfo, storageBufferCount,
 		uniformBuffersDescriptorInfo, uniformBufferCount);
 
@@ -546,6 +571,7 @@ int main(int argc, char* argv[])
 	commandBufferBuildData.Width = windowWidth;
 	commandBufferBuildData.Height = windowHeight;
 	commandBufferBuildData.RenderPass = renderPass;
+	// TODO: Possibly another barrier for the id image target.
 	commandBufferBuildData.Target = renderTarget.Image;
 	commandBufferBuildData.PipelineLayout = graphicsPipelineLayout;
 	commandBufferBuildData.DescriptorSet = rasterizationSet;
@@ -635,13 +661,15 @@ int main(int argc, char* argv[])
 
 				++frameCounterPerSecond;
 
-				const uint16_t mouseX = CoreInput.GetMouseX();
-				const uint16_t mouseY = CoreInput.GetMouseY();
-				const bool isMousePressed = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
+				uint16_t mouseX = CoreInput.GetMouseX();
+				uint16_t mouseY = CoreInput.GetMouseY();
+				static bool wasMousePressedRight = false;
+				const bool isMousePressedLeft = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
+				const bool isMousePressedRight = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Right);
 
 				const float timeDelta = renderDelta * .001f;
 
-				if (isMousePressed && !GUI::Renderer::WantMouseCapture())
+				if (isMousePressedLeft && !GUI::Renderer::WantMouseCapture())
 				{
 					const int deltaX = int(lastMouseX) - int(mouseX);
 					const int deltaY = int(lastMouseY) - int(mouseY);
@@ -653,6 +681,38 @@ int main(int argc, char* argv[])
 					camera.Rotate({ 0, 0, 1 }, xMove);
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
 				}
+				else if (isMousePressedRight/* && !wasMousePressedRight*/ && !GUI::Renderer::WantMouseCapture())
+				{
+					// TODO: layout transition?
+					window->ClipMousePosition(mouseX, mouseY);
+					if (mouseX < windowWidth && mouseY < windowHeight)
+					{
+						VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
+							idTarget.DescriptorImageInfo.imageLayout, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
+							int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
+
+						VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
+							idStagingBufferInfo.Size, &imageQueryResult);
+
+						if (imageQueryResult.tree != 0xFFFFFFFF)
+						{
+							uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree,
+								imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+							//imageQueryResult.tree = 4;
+							//voxelIndex = 100;
+
+							//CoreLogInfo("%llu", voxelIndex);
+
+							hd.SetVoxelColor(imageQueryResult.tree, voxelIndex, { 1, 0, 0 });
+
+							hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
+								imageQueryResult.tree, voxelIndex * sizeof(openvdb::Vec4s), sizeof(openvdb::Vec4s),
+								colorCompressionMargin);
+						}
+					}
+				}
+
+				wasMousePressedRight = isMousePressedRight;
 
 				if (!GUI::Renderer::WantKeyboardCapture())
 				{
@@ -898,6 +958,9 @@ int main(int argc, char* argv[])
 	VulkanFactory::Descriptor::DestroySetLayout(deviceInfo.Handle, rasterizationSetLayout);
 	VulkanFactory::Descriptor::DestroyPool(deviceInfo.Handle, descriptorPool);
 
+	VulkanFactory::Buffer::Destroy(deviceInfo, idStagingBufferInfo);
+
+	VulkanFactory::Image::Destroy(deviceInfo.Handle, idTarget);
 	VulkanFactory::Image::Destroy(deviceInfo.Handle, renderTarget);
 
 	VulkanFactory::Shader::Destroy(deviceInfo.Handle, computeShader);
