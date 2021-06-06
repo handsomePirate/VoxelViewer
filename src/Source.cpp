@@ -596,6 +596,16 @@ int main(int argc, char* argv[])
 	//=========================== Rendering and message loop =========================
 
 #pragma region Render loop
+	int selectionRadius = 8;
+	auto ChangeSelectionRadius = [&selectionRadius](Core::EventCode code, Core::EventData context)
+		-> bool
+	{
+		selectionRadius += int(context.data.i8[0]);
+		selectionRadius = (std::min)((std::max)(1, selectionRadius), 20);
+		return false;
+	};
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseWheel, ChangeSelectionRadius, &selectionRadius);
+
 	uint32_t currentImageIndex = 0;
 	
 	Context renderingContext;
@@ -663,6 +673,7 @@ int main(int argc, char* argv[])
 
 				uint16_t mouseX = CoreInput.GetMouseX();
 				uint16_t mouseY = CoreInput.GetMouseY();
+				window->ClipMousePosition(mouseX, mouseY);
 				static bool wasMousePressedRight = false;
 				const bool isMousePressedLeft = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
 				const bool isMousePressedRight = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Right);
@@ -684,7 +695,6 @@ int main(int argc, char* argv[])
 				else if (isMousePressedRight/* && !wasMousePressedRight*/ && !GUI::Renderer::WantMouseCapture())
 				{
 					// TODO: layout transition?
-					window->ClipMousePosition(mouseX, mouseY);
 					if (mouseX < windowWidth && mouseY < windowHeight)
 					{
 						VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
@@ -744,6 +754,9 @@ int main(int argc, char* argv[])
 				}
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
+				tracingParameters.MouseX = int(mouseX);
+				tracingParameters.MouseY = windowHeight - int(mouseY);
+				tracingParameters.SelectionRadius = selectionRadius;
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cuttingPlanesBuffer.Memory,

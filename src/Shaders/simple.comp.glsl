@@ -73,6 +73,9 @@ layout(binding = 10) uniform TracingParameters
 	vec3 rayDDy;
 	int voxelDetail;
 	float colorScale;
+	int mouseX;
+	int mouseY;
+	int selectionRadius;
 } parameters;
 
 layout(push_constant) uniform PushConstants
@@ -492,6 +495,15 @@ void main()
 				hitDist = dist;
 			}
 		}
+	}
+
+	int xDiff = parameters.mouseX - int(gl_GlobalInvocationID.x);
+	int yDiff = parameters.mouseY - int(gl_GlobalInvocationID.y);
+	if (sqrt(float(xDiff * xDiff + yDiff * yDiff)) < parameters.selectionRadius)
+	{
+		float overlayAlpha = 0.6;
+		vec3 overlayColor = vec3(0.6, 0.6, 0.1);
+		resultColor = overlayColor * overlayAlpha + resultColor * (1 - overlayAlpha);
 	}
 
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(resultColor, 1));

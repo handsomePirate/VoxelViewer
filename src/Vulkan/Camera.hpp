@@ -13,6 +13,9 @@ struct TracingParameters
 	SHADER_ALIGN Eigen::Vector3f RayDDy;
 	int VoxelDetail;
 	float ColorScale;
+	uint32_t MouseX;
+	uint32_t MouseY;
+	int SelectionRadius;
 };
 
 class Camera
