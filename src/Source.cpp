@@ -343,7 +343,7 @@ int main(int argc, char* argv[])
 		uint32_t x, y, z, tree;
 	} imageQueryResult{};
 
-	const int maxSelectionDiameter = 40;
+	const int maxSelectionDiameter = 41;
 	VulkanFactory::Buffer::BufferInfo idStagingBufferInfo;
 	VkDeviceSize idUploadSize = maxSelectionDiameter * maxSelectionDiameter * sizeof(ImageQueryResult);
 	VulkanFactory::Buffer::Create("ID Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_DST_BIT, idUploadSize,
@@ -597,11 +597,11 @@ int main(int argc, char* argv[])
 	//=========================== Rendering and message loop =========================
 
 #pragma region Render loop
-	int selectionDiameter = 8;
+	int selectionDiameter = 9;
 	auto ChangeSelectionRadius = [&selectionDiameter, &maxSelectionDiameter](Core::EventCode code, Core::EventData context)
 		-> bool
 	{
-		selectionDiameter += int(context.data.i8[0]);
+		selectionDiameter += int(context.data.i8[0]) * 2;
 		selectionDiameter = (std::min)((std::max)(1, selectionDiameter), maxSelectionDiameter);
 		return false;
 	};
@@ -701,31 +701,47 @@ int main(int argc, char* argv[])
 						VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
 							idTarget.DescriptorImageInfo.imageLayout, selectionDiameter, selectionDiameter,
 							VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
-							int32_t(mouseX) - selectionDiameter / 2, int32_t(windowHeight) - (int32_t(mouseY) - selectionDiameter / 2));
+							int32_t(mouseX) - selectionDiameter / 2, int32_t(windowHeight) - (int32_t(mouseY) + selectionDiameter / 2));
 
-						int voxelCount = selectionDiameter * selectionDiameter;
-						float testDistance = float(voxelCount);
+						const float selectionRadius = selectionDiameter * .5f;
+
+						const int pixelCount = selectionDiameter * selectionDiameter;
+						const int testDistance = selectionRadius * selectionRadius;
 						
-						for (int v = 0; v < voxelCount; ++v)
+						std::map<int, std::pair<uint64_t, uint64_t>> treeMinMax;
+						for (int p = 0; p < pixelCount; ++p)
 						{
-							VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
-								sizeof(ImageQueryResult), &imageQueryResult, v * sizeof(ImageQueryResult));
+							float px = (p % selectionDiameter) - selectionRadius;
+							float py = (p / selectionDiameter) - selectionRadius;
 
-							if (imageQueryResult.tree != 0xFFFFFFFF)
+							//CoreLogInfo("dist: %i; maxDist: %i", xDiff * xDiff + yDiff * yDiff, testDistance);
+							if (px * px + py * py <= testDistance)
 							{
-								uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree,
-									imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
-								//imageQueryResult.tree = 4;
-								//voxelIndex = 100;
+								VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
+									sizeof(ImageQueryResult), &imageQueryResult, p * sizeof(ImageQueryResult));
 
-								//CoreLogInfo("%llu", voxelIndex);
+								if (imageQueryResult.tree != 0xFFFFFFFF)
+								{
+									uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree,
+										imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+									//imageQueryResult.tree = 4;
+									//voxelIndex = 100;
+									treeMinMax[imageQueryResult.tree].first = (std::min)(treeMinMax[imageQueryResult.tree].first, voxelIndex);
+									treeMinMax[imageQueryResult.tree].second = (std::max)(treeMinMax[imageQueryResult.tree].second, voxelIndex);
 
-								hd.SetVoxelColor(imageQueryResult.tree, voxelIndex, { 1, 0, 0 });
+									//CoreLogInfo("%llu", voxelIndex);
 
-								hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
-									imageQueryResult.tree, voxelIndex * sizeof(openvdb::Vec4s), sizeof(openvdb::Vec4s),
-									colorCompressionMargin);
+									hd.SetVoxelColor(imageQueryResult.tree, voxelIndex, { 1, 0, 0 });
+								}
 							}
+						}
+						for (auto&& tree : treeMinMax)
+						{
+							VkDeviceSize offset = tree.second.first;
+							VkDeviceSize size = tree.second.second - tree.second.first;
+							hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
+								tree.first, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
+								colorCompressionMargin);
 						}
 					}
 				}

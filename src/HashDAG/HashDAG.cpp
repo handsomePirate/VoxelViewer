@@ -1277,12 +1277,12 @@ uint64_t HashDAG::ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint3
 	}
 	
 	uint64_t leaf = GetLeaf(node);
-
+	
 	uint8_t child = path.ChildAtLevel(HTConstants::LEAF_LEVEL);
 	voxelIndex += GetFirstVoxelCount(leaf, child);
-	child = path.ChildAtLevel(HTConstants::LEAF_LEVEL + 1);
 	uint8_t firstMask = GetFirstLeafMask(leaf);
-	uint8_t secondMask = GetSecondLeafMask(leaf, firstMask);
+	uint8_t secondMask = GetSecondLeafMask(leaf, child);
+	child = path.ChildAtLevel(HTConstants::LEAF_LEVEL + 1);
 	voxelIndex += GetSecondVoxelCount(secondMask, child);
 
 	return voxelIndex;
