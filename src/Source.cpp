@@ -343,8 +343,9 @@ int main(int argc, char* argv[])
 		uint32_t x, y, z, tree;
 	} imageQueryResult{};
 
+	const int maxSelectionDiameter = 40;
 	VulkanFactory::Buffer::BufferInfo idStagingBufferInfo;
-	VkDeviceSize idUploadSize = sizeof(ImageQueryResult);
+	VkDeviceSize idUploadSize = maxSelectionDiameter * maxSelectionDiameter * sizeof(ImageQueryResult);
 	VulkanFactory::Buffer::Create("ID Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_DST_BIT, idUploadSize,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, idStagingBufferInfo);
 #pragma endregion
@@ -596,15 +597,15 @@ int main(int argc, char* argv[])
 	//=========================== Rendering and message loop =========================
 
 #pragma region Render loop
-	int selectionRadius = 8;
-	auto ChangeSelectionRadius = [&selectionRadius](Core::EventCode code, Core::EventData context)
+	int selectionDiameter = 8;
+	auto ChangeSelectionRadius = [&selectionDiameter, &maxSelectionDiameter](Core::EventCode code, Core::EventData context)
 		-> bool
 	{
-		selectionRadius += int(context.data.i8[0]);
-		selectionRadius = (std::min)((std::max)(1, selectionRadius), 20);
+		selectionDiameter += int(context.data.i8[0]);
+		selectionDiameter = (std::min)((std::max)(1, selectionDiameter), maxSelectionDiameter);
 		return false;
 	};
-	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseWheel, ChangeSelectionRadius, &selectionRadius);
+	CoreEventSystem.SubscribeToEvent(Core::EventCode::MouseWheel, ChangeSelectionRadius, &selectionDiameter);
 
 	uint32_t currentImageIndex = 0;
 	
@@ -698,26 +699,33 @@ int main(int argc, char* argv[])
 					if (mouseX < windowWidth && mouseY < windowHeight)
 					{
 						VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
-							idTarget.DescriptorImageInfo.imageLayout, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
-							int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
+							idTarget.DescriptorImageInfo.imageLayout, selectionDiameter, selectionDiameter,
+							VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
+							int32_t(mouseX) - selectionDiameter / 2, int32_t(windowHeight) - (int32_t(mouseY) - selectionDiameter / 2));
 
-						VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
-							idStagingBufferInfo.Size, &imageQueryResult);
-
-						if (imageQueryResult.tree != 0xFFFFFFFF)
+						int voxelCount = selectionDiameter * selectionDiameter;
+						float testDistance = float(voxelCount);
+						
+						for (int v = 0; v < voxelCount; ++v)
 						{
-							uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree,
-								imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
-							//imageQueryResult.tree = 4;
-							//voxelIndex = 100;
+							VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
+								sizeof(ImageQueryResult), &imageQueryResult, v * sizeof(ImageQueryResult));
 
-							//CoreLogInfo("%llu", voxelIndex);
+							if (imageQueryResult.tree != 0xFFFFFFFF)
+							{
+								uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree,
+									imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+								//imageQueryResult.tree = 4;
+								//voxelIndex = 100;
 
-							hd.SetVoxelColor(imageQueryResult.tree, voxelIndex, { 1, 0, 0 });
+								//CoreLogInfo("%llu", voxelIndex);
 
-							hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
-								imageQueryResult.tree, voxelIndex * sizeof(openvdb::Vec4s), sizeof(openvdb::Vec4s),
-								colorCompressionMargin);
+								hd.SetVoxelColor(imageQueryResult.tree, voxelIndex, { 1, 0, 0 });
+
+								hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
+									imageQueryResult.tree, voxelIndex * sizeof(openvdb::Vec4s), sizeof(openvdb::Vec4s),
+									colorCompressionMargin);
+							}
 						}
 					}
 				}
@@ -756,7 +764,7 @@ int main(int argc, char* argv[])
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				tracingParameters.MouseX = int(mouseX);
 				tracingParameters.MouseY = windowHeight - int(mouseY);
-				tracingParameters.SelectionRadius = selectionRadius;
+				tracingParameters.SelectionDiameter = selectionDiameter;
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cuttingPlanesBuffer.Memory,

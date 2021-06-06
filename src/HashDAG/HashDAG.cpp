@@ -665,7 +665,6 @@ bool HashDAG::CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& di
 			else
 			{
 				uint8_t childMask;
-				uint64_t voxelIndex;
 
 				if (level == HTConstants::LEAF_LEVEL)
 				{

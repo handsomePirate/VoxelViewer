@@ -587,9 +587,10 @@ void VulkanUtils::Buffer::Copy(VkDevice device, VkDeviceMemory memory, VkDeviceS
 	Memory::Unmap(device, memory);
 }
 
-void VulkanUtils::Buffer::GetData(VkDevice device, VkDeviceMemory memory, VkDeviceSize size, void* destination)
+void VulkanUtils::Buffer::GetData(VkDevice device, VkDeviceMemory memory, VkDeviceSize size, void* destination,
+	VkDeviceSize sourceOffset)
 {
-	void* source = Memory::Map(device, memory, 0, size);
+	void* source = Memory::Map(device, memory, sourceOffset, size);
 	memcpy(destination, source, size);
 	Memory::Unmap(device, memory);
 }

@@ -15,7 +15,7 @@ struct TracingParameters
 	float ColorScale;
 	uint32_t MouseX;
 	uint32_t MouseY;
-	int SelectionRadius;
+	int SelectionDiameter;
 };
 
 class Camera

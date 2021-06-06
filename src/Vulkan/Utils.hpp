@@ -87,7 +87,8 @@ namespace VulkanUtils
 	public:
 		static void Copy(VkDevice device, VkDeviceMemory memory, VkDeviceSize size,
 			void* source, VkDeviceSize destinationOffset = 0);
-		static void GetData(VkDevice device, VkDeviceMemory memory, VkDeviceSize size, void* destination);
+		static void GetData(VkDevice device, VkDeviceMemory memory, VkDeviceSize size, void* destination,
+			VkDeviceSize sourceOffset = 0);
 		static void Copy(VkDevice device, VkBuffer source, VkBuffer destination, VkDeviceSize size,
 			VkCommandPool commandPool, VkQueue queue, VkDeviceSize sourceOffset = 0, VkDeviceSize destinationOffset = 0);
 		static void Copy(VkDevice device, VkImage source, VkBuffer destination, VkImageLayout layout,

@@ -75,7 +75,7 @@ layout(binding = 10) uniform TracingParameters
 	float colorScale;
 	int mouseX;
 	int mouseY;
-	int selectionRadius;
+	int selectionDiameter;
 } parameters;
 
 layout(push_constant) uniform PushConstants
@@ -499,10 +499,10 @@ void main()
 
 	int xDiff = parameters.mouseX - int(gl_GlobalInvocationID.x);
 	int yDiff = parameters.mouseY - int(gl_GlobalInvocationID.y);
-	if (sqrt(float(xDiff * xDiff + yDiff * yDiff)) < parameters.selectionRadius)
+	if (sqrt(float(xDiff * xDiff + yDiff * yDiff)) < parameters.selectionDiameter * .5f)
 	{
-		float overlayAlpha = 0.6;
-		vec3 overlayColor = vec3(0.6, 0.6, 0.1);
+		float overlayAlpha = .6f;
+		vec3 overlayColor = vec3(.6f, .6f, .1f);
 		resultColor = overlayColor * overlayAlpha + resultColor * (1 - overlayAlpha);
 	}
 
