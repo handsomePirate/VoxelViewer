@@ -22,6 +22,7 @@
 #include <functional>
 #include <chrono>
 #include <thread>
+#include <boost/preprocessor.hpp>
 
 #include <iostream>
 
@@ -63,6 +64,28 @@ struct EventLogger
 
 int main(int argc, char* argv[])
 {
+	bool defaultExample = true;
+	std::string gridFile = "";
+	std::string gridName = "";
+	if (argc != 3)
+	{
+		if (argc == 1)
+		{
+			CoreLogWarn("No file or grid name specified, the program will run on an example grid.");
+		}
+		else
+		{
+			CoreLogInfo("Usage: VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe");
+			return 0;
+		}
+	}
+	else
+	{
+		gridFile = argv[1];
+		gridName = argv[2];
+		defaultExample = false;
+	}
+
 #pragma region Program options
 	const bool enableVulkanDebug = true;
 #pragma endregion
@@ -246,8 +269,27 @@ int main(int argc, char* argv[])
 
 #pragma region OpenVDB init, grid loading, transformation to HashDAG
 	openvdb::initialize();
-	auto gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
-	auto grid = OpenVDBUtils::LoadGrid(gridFile);
+	if (defaultExample)
+	{
+		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
+	}
+	else
+	{
+		if (CoreFilesystem.IsPathRelative(gridFile))
+		{
+			gridFile = CoreFilesystem.GetAbsolutePath(gridFile);
+		}
+	}
+	if (CoreFilesystem.FileExists(gridFile))
+	{
+		CoreLogInfo("Loading %s", gridFile.c_str());
+	}
+	else
+	{
+		CoreLogFatal("File \'%s\' could not be opened.", gridFile.c_str());
+		return 0;
+	}
+	auto grid = OpenVDBUtils::LoadGrid(gridFile, gridName);
 	//openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
 	//auto gridAccessor = grid->getAccessor();
 	//
@@ -632,6 +674,8 @@ int main(int argc, char* argv[])
 	uint16_t lastMouseX = 0;
 	uint16_t lastMouseY = 0;
 
+	float mouseSensitivity = 0.1f;
+
 	while (!window->ShouldClose())
 	{
 		window->PollMessages();
@@ -686,9 +730,8 @@ int main(int argc, char* argv[])
 					const int deltaX = int(lastMouseX) - int(mouseX);
 					const int deltaY = int(lastMouseY) - int(mouseY);
 
-					const float sensitivity = .1f;
-					const float xMove = sensitivity * deltaX * timeDelta;
-					const float yMove = sensitivity * deltaY * timeDelta;
+					const float xMove = mouseSensitivity * deltaX * timeDelta;
+					const float yMove = mouseSensitivity * deltaY * timeDelta;
 
 					camera.Rotate({ 0, 0, 1 }, xMove);
 					camera.RotateLocal({ 1, 0, 0 }, yMove);
@@ -795,7 +838,7 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity);
 			}
 			
 			if (shouldResize)
@@ -844,7 +887,7 @@ int main(int argc, char* argv[])
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity);
 			}
 			
 			{

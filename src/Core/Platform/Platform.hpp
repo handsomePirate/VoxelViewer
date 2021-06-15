@@ -80,6 +80,7 @@ namespace Core
 		Filesystem();
 		~Filesystem();
 
+		bool IsPathRelative(const std::string& path) const;
 		std::string ExecutableName() const;
 		std::string GetAbsolutePath(const std::string& relativePath) const;
 		bool FileExists(const std::string& path) const;

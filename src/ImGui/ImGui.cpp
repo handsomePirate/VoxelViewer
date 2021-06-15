@@ -91,7 +91,7 @@ void GUI::Renderer::Shutdown()
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
-	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes)
+	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity)
 {
 	static CuttingPlanes cuttingPlanesMinMax = cuttingPlanes;
 
@@ -165,6 +165,8 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		ImGui::SliderInt("voxel detail", &tracingParameters.VoxelDetail, 1, HTConstants::MAX_LEVEL_COUNT);
 
 		ImGui::SliderFloat("color scale", &tracingParameters.ColorScale, .01f, .1f);
+
+		ImGui::SliderFloat("mouse sensitivity", &mouseSensitivity, 0.01f, 1.f);
 
 		ImGui::Separator();
 

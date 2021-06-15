@@ -83,8 +83,6 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 	}
 }
 
-#include <fstream>
-
 #ifdef DEBUG_CONVERTER
 uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube,
 	void* nodeIn, HashDAG& hd, Color& hdColors, uint64_t& voxelIndex,

@@ -562,6 +562,11 @@ Core::Filesystem::~Filesystem()
     delete p_;
 }
 
+bool Core::Filesystem::IsPathRelative(const std::string& path) const
+{
+    return std::filesystem::path(path).is_relative();
+}
+
 std::string Core::Filesystem::ExecutableName() const
 {
     return p_->ExecutableName.replace_extension().string();

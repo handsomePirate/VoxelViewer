@@ -18,7 +18,7 @@ namespace GUI
 		static bool Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 			VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 			Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
-			TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes);
+			TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity);
 		static void Draw(VkCommandBuffer commandBuffer, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
 			VkDescriptorSet descriptorSet, VulkanUtils::PushConstantBlock* pushConstantBlock,
 			const VulkanFactory::Buffer::BufferInfo& vertexBuffer, const VulkanFactory::Buffer::BufferInfo& indexBuffer);
