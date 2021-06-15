@@ -232,6 +232,53 @@ uint32_t HashTable::GetMemAllocatedBytes() const
 		sizeof(uint32_t);
 }
 
+uint32_t HashTable::CountLevelNodes(uint32_t level) const
+{
+	bucket_t bucket = 0;
+	bool isTopLevel = level < HTConstants::TOP_LEVEL_RANK;
+
+	if (isTopLevel)
+	{
+		bucket = level * HTConstants::TOP_LEVEL_BUCKET_COUNT;
+	}
+	else
+	{
+		bucket = HTConstants::TOTAL_TOP_BUCKET_COUNT + (level - HTConstants::TOP_LEVEL_RANK) * HTConstants::BOTTOM_LEVEL_BUCKET_COUNT;
+	}
+
+	uint32_t result = 0;
+	uint32_t endBucket = bucket + (isTopLevel ? HTConstants::TOP_LEVEL_BUCKET_COUNT : HTConstants::BOTTOM_LEVEL_BUCKET_COUNT);
+	for (; bucket < endBucket; ++bucket)
+	{
+		vptr_t basePtr = GetBucketPtr(bucket);
+		uint32_t bucketSize = bucketsSizes_[bucket];
+		if (level == HTConstants::LEAF_LEVEL)
+		{
+			result += bucketSize / 2;
+			continue;
+		}
+
+		// The bucket could span across multiple pages, we need to iterate through them.
+		for (uint32_t p = 0; p < bucketSize; p += HTConstants::PAGE_SIZE)
+		{
+			vptr_t pagePtr = basePtr + p;
+			ptr_t const physicalPtr = Translate(pagePtr);
+			// Here, we go through all 32-bit pairs (tree leafs) and look for the right one.
+			uint32_t entryCount = (std::min)(bucketSize - p, HTConstants::PAGE_SIZE);
+
+			uint32_t nodeSize = 0;
+			for (uint32_t i = 0; i < entryCount; i += nodeSize)
+			{
+				// The next cycle of the for loop will be moved by the size of the current node.
+				nodeSize = GetNodeSize(physicalPtr + i);
+				++result;
+			}
+		}
+	}
+
+	return result;
+}
+
 HTStats HashTable::GetStats() const
 {
 	HTStats result;
@@ -381,53 +428,6 @@ uint32_t HashTable::HashLeaf(uint64_t leaf)
 	leaf *= 0xc4ceb9fe1a85ec53;
 	leaf ^= leaf >> 33;
 	return uint32_t(leaf);
-}
-
-uint32_t HashTable::CountLevelNodes(uint32_t level) const
-{
-	bucket_t bucket = 0;
-	bool isTopLevel = level < HTConstants::TOP_LEVEL_RANK;
-
-	if (isTopLevel)
-	{
-		bucket = level * HTConstants::TOP_LEVEL_BUCKET_COUNT;
-	}
-	else
-	{
-		bucket = HTConstants::TOTAL_TOP_BUCKET_COUNT + (level - HTConstants::TOP_LEVEL_RANK) * HTConstants::BOTTOM_LEVEL_BUCKET_COUNT;
-	}
-
-	uint32_t result = 0;
-	uint32_t endBucket = bucket + (isTopLevel ? HTConstants::TOP_LEVEL_BUCKET_COUNT : HTConstants::BOTTOM_LEVEL_BUCKET_COUNT);
-	for (; bucket < endBucket; ++bucket)
-	{
-		vptr_t basePtr = GetBucketPtr(bucket);
-		uint32_t bucketSize = bucketsSizes_[bucket];
-		if (level == HTConstants::LEAF_LEVEL)
-		{
-			result += bucketSize / 2;
-			continue;
-		}
-
-		// The bucket could span across multiple pages, we need to iterate through them.
-		for (uint32_t p = 0; p < bucketSize; p += HTConstants::PAGE_SIZE)
-		{
-			vptr_t pagePtr = basePtr + p;
-			ptr_t const physicalPtr = Translate(pagePtr);
-			// Here, we go through all 32-bit pairs (tree leafs) and look for the right one.
-			uint32_t entryCount = (std::min)(bucketSize - p, HTConstants::PAGE_SIZE);
-
-			uint32_t nodeSize = 0;
-			for (uint32_t i = 0; i < entryCount; i += nodeSize)
-			{
-				// The next cycle of the for loop will be moved by the size of the current node.
-				nodeSize = GetNodeSize(physicalPtr + i);
-				++result;
-			}
-		}
-	}
-
-	return result;
 }
 
 uint32_t HashTable::HashNode(const uint32_t nodeSize, const uint32_t* node)
@@ -1013,9 +1013,16 @@ void HashDAG::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, V
 	VulkanUtils::Buffer::Copy(deviceInfo.Handle, treesStagingBufferInfo.DescriptorBufferInfo.buffer,
 		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo.buffer, treesBufferSize, commandPool, queue);
 
+	VulkanFactory::Buffer::Destroy(deviceInfo, treesStagingBufferInfo);
+
 	uploadInfo.TreeCount = (uint32_t)trees_.size();
 
-	VulkanFactory::Buffer::Destroy(deviceInfo, treesStagingBufferInfo);
+	VkDeviceSize sortedTreesBufferSize = (uint32_t)trees_.size() * sizeof(int);
+
+	// TODO: Check storage buffer construction against Sascha Willems' examples.
+	VulkanFactory::Buffer::Create("Voxel Sorted Trees Storage Buffer", deviceInfo,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		sortedTreesBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, uploadInfo.SortedTreesStorageBuffer);
 
 	if (colorCompressionMargin > 0.f)
 	{
@@ -1291,6 +1298,57 @@ uint64_t HashDAG::ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint3
 void HashDAG::SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::Vec3s& color)
 {
 	treeColorArrays_[tree]->Set(voxelIndex, color);
+}
+
+void HashDAG::SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
+	VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer)
+{
+	struct TreeToSort
+	{
+		float distance;
+		int index;
+
+		TreeToSort(float distance, int index)
+			: distance(distance), index(index) {}
+	};
+
+	std::vector<std::unique_ptr<TreeToSort>> sortingArray;
+	sortingArray.resize(trees_.size());
+
+	constexpr int halfTreeSpan = int(HTConstants::TREE_SPAN / 2);
+	for (int tree = 0; tree < trees_.size(); ++tree)
+	{
+		Eigen::Vector3f treePosition(
+			float(trees_[tree].rootOffset.x() + halfTreeSpan),
+			float(trees_[tree].rootOffset.y() + halfTreeSpan),
+			float(trees_[tree].rootOffset.z() + halfTreeSpan));
+		sortingArray[tree] = std::make_unique<TreeToSort>((treePosition - cameraPosition).norm(), tree);
+	}
+
+	std::sort(sortingArray.begin(), sortingArray.end(), [](const std::unique_ptr<TreeToSort>& lhs, const std::unique_ptr<TreeToSort>& rhs)
+		{
+			return lhs->distance < rhs->distance;
+		});
+
+	std::vector<int> sortedIndices;
+	sortedIndices.resize(trees_.size());
+
+	for (int tree = 0; tree < trees_.size(); ++tree)
+	{
+		sortedIndices[tree] = sortingArray[tree]->index;
+	}
+
+	const VkDeviceSize sortedTreesBufferSize = (uint32_t)trees_.size() * sizeof(int);
+
+	VulkanFactory::Buffer::BufferInfo sortedTreesStagingBufferInfo;
+	VulkanFactory::Buffer::Create("Voxel Sorted Trees Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, sortedTreesBufferSize,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sortedTreesStagingBufferInfo);
+
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, sortedTreesStagingBufferInfo.Memory, sortedTreesBufferSize, sortedIndices.data());
+	VulkanUtils::Buffer::Copy(deviceInfo.Handle, sortedTreesStagingBufferInfo.DescriptorBufferInfo.buffer,
+		sortedTreesBuffer.DescriptorBufferInfo.buffer, sortedTreesBufferSize, commandPool, queue);
+
+	VulkanFactory::Buffer::Destroy(deviceInfo, sortedTreesStagingBufferInfo);
 }
 
 TraversalPath::TraversalPath()

@@ -64,6 +64,7 @@ struct HashDAGGPUInfo
 	VulkanFactory::Buffer::BufferInfo PagesStorageBuffer;
 	VulkanFactory::Buffer::BufferInfo PageTableStorageBuffer;
 	VulkanFactory::Buffer::BufferInfo TreeRootsStorageBuffer;
+	VulkanFactory::Buffer::BufferInfo SortedTreesStorageBuffer;
 	uint32_t PageCount;
 	uint32_t TreeCount;
 };
@@ -240,6 +241,9 @@ public:
 	uint64_t ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint32_t z) const;
 
 	void SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::Vec3s& color);
+
+	void SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
+		VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer);
 
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).

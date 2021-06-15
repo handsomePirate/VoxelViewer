@@ -35,27 +35,32 @@ layout(std140, binding = 4) buffer TreeRoots
 	TreeRoot treeRoots[];
 };
 
-layout(std140, binding = 5) buffer Colors
+layout(std140, binding = 5) buffer SortedTrees
+{
+	ivec4 treeIndices[];
+};
+
+layout(std140, binding = 6) buffer Colors
 {
 	vec4 colorArrays[];
 };
 
-layout(std140, binding = 6) buffer ColorOffsets
+layout(std140, binding = 7) buffer ColorOffsets
 {
 	u64vec2 colorOffsets[];
 };
 
-layout(std140, binding = 7) buffer ColorIndices
+layout(std140, binding = 8) buffer ColorIndices
 {
 	uvec4 colorIndices[];
 };
 
-layout(std140, binding = 8) buffer ColorIndexOffsets
+layout(std140, binding = 9) buffer ColorIndexOffsets
 {
 	u64vec2 colorIndexOffsets[];
 };
 
-layout(std140, binding = 9) uniform CuttingPlanes
+layout(std140, binding = 10) uniform CuttingPlanes
 {
 	float xMin;
 	float xMax;
@@ -65,7 +70,7 @@ layout(std140, binding = 9) uniform CuttingPlanes
 	float zMax;
 } cuttingPlanes;
 
-layout(binding = 10) uniform TracingParameters 
+layout(binding = 11) uniform TracingParameters 
 {
 	vec3 cameraPosition;
 	vec3 rayMin;
@@ -337,6 +342,11 @@ void CutRay(vec3 rayPos, vec3 rayInv)
 	//rayTMin = MaxCoeff((rayPos - cutMin) / rayDir);
 }
 
+int TreeIndex(int tree)
+{
+	return treeIndices[tree / 4][tree % 4];
+}
+
 void main()
 {
 	uint pixX = gl_GlobalInvocationID.x;
@@ -354,14 +364,14 @@ void main()
 		(rayDir.y < 0.f ? 2 : 0) +
 		(rayDir.z < 0.f ? 1 : 0);
 
-	uvec3 traversalPaths[MAX_TREES];
-	uint64_t voxelIndices[MAX_TREES];
-
 	vec3 resultColor = vec3(1);
+	uvec4 idColor = uvec4(0, 0, 0, 0xFFFFFFFFu);
+	bool hit = false;
 	//int tree = 6;
-	for (int tree = 0; tree < pushConstants.treeCount; ++tree)
+	for (int tree = 0; !hit && tree < pushConstants.treeCount; ++tree)
 	{
-		vec3 rayPos = parameters.cameraPosition - vec3(treeRoots[tree].rootOffset);
+		int treeIndex = TreeIndex(tree);
+		vec3 rayPos = parameters.cameraPosition - vec3(treeRoots[treeIndex].rootOffset);
 
 		uint level = 0;
 		NodeInfo stack[MAX_LEVELS];
@@ -370,11 +380,11 @@ void main()
 		//uint cachedLeafPart2;
 		uint64_t cachedLeaf;
 
-		traversalPaths[tree] = uvec3(0);
+		uvec3 traversalPath = uvec3(0);
 
-		stack[level].nodePtr = treeRoots[tree].rootNode;
+		stack[level].nodePtr = treeRoots[treeIndex].rootNode;
 		stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
-		stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPaths[tree],
+		stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPath,
 			rayPos, rayDir, rayInv, 1, true);
 		stack[level].voxelIndex = 0;
 
@@ -391,12 +401,10 @@ void main()
 			if (level == 0 && stack[level].visitMask == 0)
 			{
 				// Empty path signifies that we found no intersections.
-				traversalPaths[tree] = uvec3(0xFFFFFFFF);
-				stack[level].voxelIndex = 0;
 				break;
 			}
 
-			traversalPaths[tree] = PathAscend(traversalPaths[tree], formerLevel - level);
+			traversalPath = PathAscend(traversalPath, formerLevel - level);
 
 			uint nextChild = 255;
 			for (uint child = 0; child < 8; ++child)
@@ -412,7 +420,7 @@ void main()
 			stack[level].visitMask &= ~(1u << nextChild);
 
 			// We descend into the selected child.
-			traversalPaths[tree] = PathDescend(traversalPaths[tree], nextChild);
+			traversalPath = PathDescend(traversalPath, nextChild);
 			++level;
 
 			if (level == pushConstants.maxLevels)
@@ -423,7 +431,9 @@ void main()
 			if (level == min(pushConstants.maxLevels, voxelDetail))
 			{
 				// We have intersected a voxel and we have the path to it.
-				voxelIndices[tree] = stack[level - 1].voxelIndex;
+				resultColor = GetVoxelColor(treeIndex, stack[level - 1].voxelIndex);
+				idColor = uvec4(traversalPath, treeIndex);
+				hit = true;
 				break;
 			}
 
@@ -432,7 +442,7 @@ void main()
 				// We are in an internal node.
 				stack[level].nodePtr = GetChildNode(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 				stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
-				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPaths[tree], rayPos, rayDir,
+				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPath, rayPos, rayDir,
 					rayInv, 1, false);
 				stack[level].voxelIndex = stack[level - 1].voxelIndex + 
 					GetChildOffset(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
@@ -457,13 +467,14 @@ void main()
 				}
 
 				stack[level].childMask = childMask;
-				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPaths[tree], rayPos, rayDir,
+				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPath, rayPos, rayDir,
 					rayInv, 1, false);
 				stack[level].voxelIndex = voxelIndex;
 			}
 		}
 	}
 
+	/*
 	float hitDist = 3.40282e+038;
 	uvec4 idColor = uvec4(0, 0, 0, 0xFFFFFFFFu);
 	for (int tree = 0; tree < pushConstants.treeCount; ++tree)
@@ -475,9 +486,8 @@ void main()
 			if (dist < hitDist)
 			{
 				vec3 color = abs(voxelPos) * parameters.colorScale;
-				//resultColor = vec3((3.f * MinCoeff(color) + MaxCoeff(color)) / 4.f);
-				resultColor = /*tree == 7 ? vec3(1, 0, 0) : */GetVoxelColor(tree, voxelIndices[tree]);
-				//resultColor = voxelIndices[tree] == 100 ? vec3(1, 0, 0) : vec3(0);
+				//resultColor = GetVoxelColor(tree, voxelIndices[tree]);
+				resultColor = vec3(TreeIndex(tree) / 8.f);
 				idColor = uvec4(traversalPaths[tree], tree);
 				//resultColor = vec3(
 				//	PagePoolElement(Translate(
@@ -496,6 +506,7 @@ void main()
 			}
 		}
 	}
+	*/
 
 	int xDiff = parameters.mouseX - int(gl_GlobalInvocationID.x);
 	int yDiff = parameters.mouseY - int(gl_GlobalInvocationID.y);

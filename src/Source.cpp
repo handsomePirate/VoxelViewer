@@ -397,7 +397,7 @@ int main(int argc, char* argv[])
 	{
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
-		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7),
+		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 8),
 		VulkanInitializers::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2),
 	};
 	VkDescriptorPool descriptorPool = VulkanFactory::Descriptor::CreatePool("Compute and Display Descriptor Pool",
@@ -434,9 +434,11 @@ int main(int argc, char* argv[])
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
 		VulkanInitializers::DescriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
 		VulkanInitializers::DescriptorSetLayoutBinding(
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 10),
+		VulkanInitializers::DescriptorSetLayoutBinding(
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 11),
 	};
 	VkDescriptorSetLayout computeSetLayout = VulkanFactory::Descriptor::CreateSetLayout("Compute Descriptor Set Layout",
 		deviceInfo.Handle, computeLayoutBindings.data(), (uint32_t)computeLayoutBindings.size());
@@ -446,6 +448,8 @@ int main(int argc, char* argv[])
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
 	Camera camera({ 0, -512, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
+
+	hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(), uploadInfo.SortedTreesStorageBuffer);
 
 	TracingParameters tracingParameters;
 	camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
@@ -462,16 +466,17 @@ int main(int argc, char* argv[])
 		renderTarget.DescriptorImageInfo,
 		idTarget.DescriptorImageInfo
 	};
-	const uint32_t storageBufferCount = 7;
+	const uint32_t storageBufferCount = 8;
 	VkDescriptorBufferInfo storageBuffersDescriptorInfo[storageBufferCount] =
 	{
 		uploadInfo.PageTableStorageBuffer.DescriptorBufferInfo,
 		uploadInfo.PagesStorageBuffer.DescriptorBufferInfo,
 		uploadInfo.TreeRootsStorageBuffer.DescriptorBufferInfo,
+		uploadInfo.SortedTreesStorageBuffer.DescriptorBufferInfo,
 		colorInfo.ColorsStorageBuffer.DescriptorBufferInfo,
 		colorInfo.ColorOffsetsStorageBuffer.DescriptorBufferInfo,
 		colorInfo.ColorIndicesStorageBuffer.DescriptorBufferInfo,
-		colorInfo.ColorIndexOffsetsStorageBuffer.DescriptorBufferInfo
+		colorInfo.ColorIndexOffsetsStorageBuffer.DescriptorBufferInfo,
 	};
 	const uint32_t uniformBufferCount = 2;
 	VkDescriptorBufferInfo uniformBuffersDescriptorInfo[uniformBufferCount] =
@@ -818,6 +823,9 @@ int main(int argc, char* argv[])
 						* timeDelta;
 
 					camera.MoveLocal({ rightDelta, upDelta, forwardDelta });
+
+					hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(),
+						uploadInfo.SortedTreesStorageBuffer);
 				}
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
@@ -1054,6 +1062,7 @@ int main(int argc, char* argv[])
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorOffsetsStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorInfo.ColorsStorageBuffer);
 
+	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.SortedTreesStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.TreeRootsStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PagesStorageBuffer);
 	VulkanFactory::Buffer::Destroy(deviceInfo, uploadInfo.PageTableStorageBuffer);
