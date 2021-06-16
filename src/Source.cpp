@@ -387,7 +387,7 @@ int main(int argc, char* argv[])
 
 	const int maxSelectionDiameter = 41;
 	VulkanFactory::Buffer::BufferInfo idStagingBufferInfo;
-	VkDeviceSize idUploadSize = maxSelectionDiameter * maxSelectionDiameter * sizeof(ImageQueryResult);
+	VkDeviceSize idUploadSize = sizeof(ImageQueryResult);
 	VulkanFactory::Buffer::Create("ID Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_DST_BIT, idUploadSize,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, idStagingBufferInfo);
 #pragma endregion
@@ -747,46 +747,73 @@ int main(int argc, char* argv[])
 					if (mouseX < windowWidth && mouseY < windowHeight)
 					{
 						VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
-							idTarget.DescriptorImageInfo.imageLayout, selectionDiameter, selectionDiameter,
+							idTarget.DescriptorImageInfo.imageLayout, 1, 1,
 							VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
-							int32_t(mouseX) - selectionDiameter / 2, int32_t(windowHeight) - (int32_t(mouseY) + selectionDiameter / 2));
+							int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
 
-						const float selectionRadius = selectionDiameter * .5f;
+						VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
+							sizeof(ImageQueryResult), &imageQueryResult);
 
-						const int pixelCount = selectionDiameter * selectionDiameter;
+						//CoreLogInfo("Hit: %i, %i, %i", imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+
+						const int selectionRadius = selectionDiameter / 2;
 						const int testDistance = selectionRadius * selectionRadius;
 						
-						std::map<int, std::pair<uint64_t, uint64_t>> treeMinMax;
-						for (int p = 0; p < pixelCount; ++p)
+						struct TreeMinMax
 						{
-							float px = (p % selectionDiameter) - selectionRadius;
-							float py = (p / selectionDiameter) - selectionRadius;
+							uint64_t min = 0xFFFFFFFFFFFFFFFF;
+							uint64_t max = 0;
+						};
 
-							//CoreLogInfo("dist: %i; maxDist: %i", xDiff * xDiff + yDiff * yDiff, testDistance);
-							if (px * px + py * py <= testDistance)
+						std::map<int, TreeMinMax> treeMinMax;
+						const int coordMin = -selectionDiameter / 2;
+						const int coordMax = selectionDiameter - selectionDiameter / 2;
+						if (imageQueryResult.tree != 0xFFFFFFFF)
+						{
+							const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
+							const int xOffset = imageQueryResult.x + treeOffset.x();
+							const int yOffset = imageQueryResult.y + treeOffset.y();
+							const int zOffset = imageQueryResult.z + treeOffset.z();
+							for (int x = coordMin + xOffset; x < coordMax + xOffset; ++x)
 							{
-								VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
-									sizeof(ImageQueryResult), &imageQueryResult, p * sizeof(ImageQueryResult));
-
-								if (imageQueryResult.tree != 0xFFFFFFFF)
+								for (int y = coordMin + yOffset; y < coordMax + yOffset; ++y)
 								{
-									uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree,
-										imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
-									//imageQueryResult.tree = 4;
-									//voxelIndex = 100;
-									treeMinMax[imageQueryResult.tree].first = (std::min)(treeMinMax[imageQueryResult.tree].first, voxelIndex);
-									treeMinMax[imageQueryResult.tree].second = (std::max)(treeMinMax[imageQueryResult.tree].second, voxelIndex);
+									for (int z = coordMin + zOffset; z < coordMax + zOffset; ++z)
+									{
+										const int tree = hd.GetCoordsTree({ x, y, z });
+										if (tree != -1)
+										{
+											const int xInTree = x % HTConstants::TREE_SPAN;
+											const int yInTree = y % HTConstants::TREE_SPAN;
+											const int zInTree = z % HTConstants::TREE_SPAN;
 
-									//CoreLogInfo("%llu", voxelIndex);
+											uint64_t voxelIndex = hd.ComputeVoxelIndex(tree, xInTree, yInTree, zInTree);
+											if (voxelIndex != 0xFFFFFFFFFFFFFFFF)
+											{
+												const int xFromMean = xOffset - x;
+												const int yFromMean = yOffset - y;
+												const int zFromMean = zOffset - z;
 
-									hd.SetVoxelColor(imageQueryResult.tree, voxelIndex, { 1, 0, 0 });
+												if (xFromMean * xFromMean + yFromMean * yFromMean + zFromMean * zFromMean <= testDistance)
+												{
+													treeMinMax[tree].min = (std::min)(treeMinMax[tree].min, voxelIndex);
+													treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
+
+													//CoreLogInfo("%i, %i, %i", x, y, z);
+													hd.SetVoxelColor(tree, voxelIndex, { 1, 0, 0 });
+												}
+											}
+										}
+									}
 								}
 							}
 						}
+						
 						for (auto&& tree : treeMinMax)
 						{
-							VkDeviceSize offset = tree.second.first;
-							VkDeviceSize size = tree.second.second - tree.second.first;
+							VkDeviceSize offset = tree.second.min;
+							VkDeviceSize size = tree.second.max - tree.second.min + 1;
+							CoreLogInfo("Size (%i): %llu", tree.first, size);
 							hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
 								tree.first, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
 								colorCompressionMargin);

@@ -494,6 +494,9 @@ uint32_t HashTable::GetNodeSize(uint32_t* const ptr)
 	return __popcnt(*ptr & 0xFF) + 1;
 }
 
+HashDAG::HashDAG()
+	: treeGrid_(openvdb::Int32Grid::create(-1)), treeGridAccessor_(treeGrid_->getAccessor()) {}
+
 void HashDAG::Init(uint32_t pagePoolSize)
 {
 	ht_.Init(pagePoolSize);
@@ -512,6 +515,12 @@ HashTable::vptr_t HashDAG::FindOrAddNode(uint32_t level, uint32_t nodeSize, uint
 void HashDAG::AddRoot(HashTable::vptr_t node, const Eigen::Vector3i& offset)
 {
 	trees_.push_back({ offset, node });
+	treeGridAccessor_.setValue(
+		{
+			(offset.x() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN),
+			(offset.y() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN),
+			(offset.z() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN)
+		}, int(trees_.size()) - 1);
 }
 
 Color& HashDAG::AddColorArray(int voxelCount)
@@ -1279,18 +1288,30 @@ uint64_t HashDAG::ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint3
 	{
 		uint8_t child = path.ChildAtLevel(level);
 		uint8_t childMask = GetNodeChildMask(node);
+		if ((childMask & (1u << child)) == 0)
+		{
+			return 0xFFFFFFFFFFFFFFFF;
+		}
 		voxelIndex += GetChildOffset(node, child, childMask);
 		node = GetChildNode(node, child, childMask);
 	}
 	
 	uint64_t leaf = GetLeaf(node);
 	
-	uint8_t child = path.ChildAtLevel(HTConstants::LEAF_LEVEL);
-	voxelIndex += GetFirstVoxelCount(leaf, child);
+	uint8_t firstLeafChild = path.ChildAtLevel(HTConstants::LEAF_LEVEL);
 	uint8_t firstMask = GetFirstLeafMask(leaf);
-	uint8_t secondMask = GetSecondLeafMask(leaf, child);
-	child = path.ChildAtLevel(HTConstants::LEAF_LEVEL + 1);
-	voxelIndex += GetSecondVoxelCount(secondMask, child);
+	if ((firstMask & (1u << firstLeafChild)) == 0)
+	{
+		return 0xFFFFFFFFFFFFFFFF;
+	}
+	voxelIndex += GetFirstVoxelCount(leaf, firstLeafChild);
+	uint8_t secondLeafChild = path.ChildAtLevel(HTConstants::LEAF_LEVEL + 1);
+	uint8_t secondMask = GetSecondLeafMask(leaf, firstLeafChild);
+	if ((secondMask & (1u << secondLeafChild)) == 0)
+	{
+		return 0xFFFFFFFFFFFFFFFF;
+	}
+	voxelIndex += GetSecondVoxelCount(secondMask, secondLeafChild);
 
 	return voxelIndex;
 }
@@ -1349,6 +1370,21 @@ void HashDAG::SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& device
 		sortedTreesBuffer.DescriptorBufferInfo.buffer, sortedTreesBufferSize, commandPool, queue);
 
 	VulkanFactory::Buffer::Destroy(deviceInfo, sortedTreesStagingBufferInfo);
+}
+
+const Eigen::Vector3i& HashDAG::GetTreeOffset(int tree) const
+{
+	return trees_[tree].rootOffset;
+}
+
+int HashDAG::GetCoordsTree(const Eigen::Vector3i& coords)
+{
+	return treeGridAccessor_.getValue(
+		{
+			(coords.x() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN),
+			(coords.y() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN),
+			(coords.z() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN)
+		});
 }
 
 TraversalPath::TraversalPath()

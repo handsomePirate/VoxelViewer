@@ -199,7 +199,7 @@ struct NodeInfo
 class HashDAG
 {
 public:
-	HashDAG() = default;
+	HashDAG();
 	~HashDAG() = default;
 
 	void Init(uint32_t pagePoolSize);
@@ -245,6 +245,9 @@ public:
 	void SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer);
 
+	const Eigen::Vector3i& GetTreeOffset(int tree) const;
+	int GetCoordsTree(const Eigen::Vector3i& coords);
+
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).
 	bool Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t level, const BoundingBox& bbox) const;
@@ -272,4 +275,6 @@ private:
 	std::vector<HashTree> trees_;
 	std::vector<std::unique_ptr<Color>> treeColorArrays_;
 	BoundingBox boundingBox_;
+	openvdb::Int32Grid::Ptr treeGrid_;
+	openvdb::Int32Grid::Accessor treeGridAccessor_;
 };
