@@ -461,7 +461,6 @@ HashTable::bucket_t HashTable::GetBucket(uint32_t level, uint32_t hash)
 	const uint32_t bucketsPerLevel = isTopLevel ? HTConstants::TOP_LEVEL_BUCKET_COUNT : 
 		HTConstants::BOTTOM_LEVEL_BUCKET_COUNT;
 
-	// TODO: Check what this does.
 	bucket_t bucket = hash & (bucketsPerLevel - 1);
 	if (isTopLevel)
 	{
@@ -1266,7 +1265,7 @@ int HashDAG::Left() const
 
 int HashDAG::Right() const
 {
-	return boundingBox_.pos.z() + boundingBox_.span.x();
+	return boundingBox_.pos.x() + boundingBox_.span.x();
 }
 
 int HashDAG::Back() const

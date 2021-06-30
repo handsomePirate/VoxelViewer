@@ -364,7 +364,7 @@ void main()
 		(rayDir.y < 0.f ? 2 : 0) +
 		(rayDir.z < 0.f ? 1 : 0);
 
-	vec3 resultColor = vec3(1);
+	vec3 resultColor = vec3(0.3);
 	uvec4 idColor = uvec4(0, 0, 0, 0xFFFFFFFFu);
 	bool hit = false;
 	//int tree = 6;
