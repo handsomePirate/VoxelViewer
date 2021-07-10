@@ -76,10 +76,9 @@ layout(binding = 11) uniform TracingParameters
 	vec3 rayMin;
 	vec3 rayDDx;
 	vec3 rayDDy;
+	vec3 mousePosition;
 	int voxelDetail;
 	float colorScale;
-	int mouseX;
-	int mouseY;
 	int selectionDiameter;
 } parameters;
 
@@ -367,7 +366,7 @@ void main()
 	vec3 resultColor = vec3(0.3);
 	uvec4 idColor = uvec4(0, 0, 0, 0xFFFFFFFFu);
 	bool hit = false;
-	//int tree = 6;
+	vec3 voxelPosition;
 	for (int tree = 0; !hit && tree < pushConstants.treeCount; ++tree)
 	{
 		int treeIndex = TreeIndex(tree);
@@ -434,6 +433,7 @@ void main()
 				resultColor = GetVoxelColor(treeIndex, stack[level - 1].voxelIndex);
 				idColor = uvec4(traversalPath, treeIndex);
 				hit = true;
+				voxelPosition = vec3(treeRoots[treeIndex].rootOffset) + PathAsPosition(traversalPath, 0);
 				break;
 			}
 
@@ -474,47 +474,14 @@ void main()
 		}
 	}
 
-	/*
-	float hitDist = 3.40282e+038;
-	uvec4 idColor = uvec4(0, 0, 0, 0xFFFFFFFFu);
-	for (int tree = 0; tree < pushConstants.treeCount; ++tree)
-	{
-		if (traversalPaths[tree].x != 0xFFFFFFFF || traversalPaths[tree].y != 0xFFFFFFFF || traversalPaths[tree].z != 0xFFFFFFFF)
-		{
-			vec3 voxelPos = vec3(treeRoots[tree].rootOffset) + PathAsPosition(traversalPaths[tree], 0);
-			float dist = distance(parameters.cameraPosition, voxelPos);
-			if (dist < hitDist)
-			{
-				vec3 color = abs(voxelPos) * parameters.colorScale;
-				//resultColor = GetVoxelColor(tree, voxelIndices[tree]);
-				resultColor = vec3(TreeIndex(tree) / 8.f);
-				idColor = uvec4(traversalPaths[tree], tree);
-				//resultColor = vec3(
-				//	PagePoolElement(Translate(
-				//	PagePoolElement(Translate(
-				//	PagePoolElement(Translate(
-				//		PagePoolElement(Translate(
-				//			PagePoolElement(Translate(
-				//				PagePoolElement(Translate(treeRoots[tree].rootNode) + 1)
-				//			+ 1))
-				//		+ 1))
-				//	+ 1))
-				//	+ 1))
-				//	+ 3)) > 0);
-				//resultColor = vec3(voxelIndices[tree] > 0ul);
-				hitDist = dist;
-			}
-		}
-	}
-	*/
-
-	int xDiff = parameters.mouseX - int(gl_GlobalInvocationID.x);
-	int yDiff = parameters.mouseY - int(gl_GlobalInvocationID.y);
-	if (sqrt(float(xDiff * xDiff + yDiff * yDiff)) < parameters.selectionDiameter * .5f)
+	if (hit)
 	{
 		float overlayAlpha = .6f;
-		vec3 overlayColor = vec3(.6f, .6f, .1f);
-		resultColor = overlayColor * overlayAlpha + resultColor * (1 - overlayAlpha);
+		vec3 overlayColor = vec3(.1f, .1f, .1f);
+		float dist = length(parameters.mousePosition - voxelPosition);
+		resultColor = (dist < parameters.selectionDiameter * .5f) ?
+			overlayColor * overlayAlpha + resultColor * (1 - overlayAlpha) :
+			resultColor;
 	}
 
 	imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(resultColor, 1));

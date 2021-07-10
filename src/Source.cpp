@@ -271,7 +271,7 @@ int main(int argc, char* argv[])
 	openvdb::initialize();
 	if (defaultExample)
 	{
-		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
+		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/spots.vdb");
 	}
 	else
 	{
@@ -455,6 +455,7 @@ int main(int argc, char* argv[])
 	camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 	tracingParameters.VoxelDetail = HTConstants::MAX_LEVEL_COUNT;
 	tracingParameters.ColorScale = .01f;
+	tracingParameters.MousePosition = { FLT_MAX, FLT_MAX, FLT_MAX };
 	VulkanFactory::Buffer::BufferInfo tracingUniformBuffer;
 	VulkanFactory::Buffer::Create("Tracing Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, tracingUniformBuffer);
@@ -731,6 +732,29 @@ int main(int argc, char* argv[])
 
 				const float timeDelta = renderDelta * .001f;
 
+				VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
+					idTarget.DescriptorImageInfo.imageLayout, 1, 1,
+					VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
+					int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
+
+				VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
+					sizeof(ImageQueryResult), &imageQueryResult);
+
+				if (imageQueryResult.tree != 0xFFFFFFFF)
+				{
+					const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
+					tracingParameters.MousePosition =
+					{
+						treeOffset.x() + float(imageQueryResult.x),
+						treeOffset.y() + float(imageQueryResult.y),
+						treeOffset.z() + float(imageQueryResult.z)
+					};
+				}
+				else
+				{
+					tracingParameters.MousePosition = { FLT_MAX, FLT_MAX, FLT_MAX };
+				}
+
 				if (isMousePressedLeft && !GUI::Renderer::WantMouseCapture())
 				{
 					const int deltaX = int(lastMouseX) - int(mouseX);
@@ -747,18 +771,8 @@ int main(int argc, char* argv[])
 					// TODO: layout transition?
 					if (mouseX < windowWidth && mouseY < windowHeight)
 					{
-						VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
-							idTarget.DescriptorImageInfo.imageLayout, 1, 1,
-							VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
-							int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
-
-						VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
-							sizeof(ImageQueryResult), &imageQueryResult);
-
-						//CoreLogInfo("Hit: %i, %i, %i", imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
-
 						const int selectionRadius = selectionDiameter / 2;
-						const int testDistance = selectionRadius * selectionRadius;
+						const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
 						
 						struct TreeMinMax
 						{
@@ -857,8 +871,6 @@ int main(int argc, char* argv[])
 				}
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
-				tracingParameters.MouseX = int(mouseX);
-				tracingParameters.MouseY = windowHeight - int(mouseY);
 				tracingParameters.SelectionDiameter = selectionDiameter;
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
