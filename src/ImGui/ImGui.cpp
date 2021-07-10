@@ -91,7 +91,8 @@ void GUI::Renderer::Shutdown()
 bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
-	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity)
+	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity,
+	Eigen::Vector3f& editColor)
 {
 	static CuttingPlanes cuttingPlanesMinMax = cuttingPlanes;
 
@@ -182,6 +183,16 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 			(consoleLogger ? (int)Core::LoggerType::Console : 0));
 		CoreLogger.SetTypes(resultingTypes);
 
+		ImGui::End();
+	}
+
+	if (!ImGui::Begin("Editing Tools", nullptr))
+	{
+		ImGui::End();
+	}
+	else
+	{
+		ImGui::ColorPicker3("drawing color", &editColor[0]);
 		ImGui::End();
 	}
 

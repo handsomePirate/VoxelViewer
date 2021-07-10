@@ -680,6 +680,7 @@ int main(int argc, char* argv[])
 	uint16_t lastMouseY = 0;
 
 	float mouseSensitivity = 0.1f;
+	Eigen::Vector3f editColor(1, 0, 0);
 
 	while (!window->ShouldClose())
 	{
@@ -800,7 +801,7 @@ int main(int argc, char* argv[])
 													treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
 
 													//CoreLogInfo("%i, %i, %i", x, y, z);
-													hd.SetVoxelColor(tree, voxelIndex, { 1, 0, 0 });
+													hd.SetVoxelColor(tree, voxelIndex, { editColor[0], editColor[1], editColor[2] });
 												}
 											}
 										}
@@ -813,7 +814,7 @@ int main(int argc, char* argv[])
 						{
 							VkDeviceSize offset = tree.second.min;
 							VkDeviceSize size = tree.second.max - tree.second.min + 1;
-							CoreLogInfo("Size (%i): %llu", tree.first, size);
+							//CoreLogInfo("Size (%i): %llu", tree.first, size);
 							hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
 								tree.first, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
 								colorCompressionMargin);
@@ -873,7 +874,7 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor);
 			}
 			
 			if (shouldResize)
@@ -922,7 +923,7 @@ int main(int argc, char* argv[])
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor);
 			}
 			
 			{
