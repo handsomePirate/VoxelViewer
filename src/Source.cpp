@@ -16,13 +16,15 @@
 #include "HashDAG/Converter.hpp"
 #include "HashDAG/CPUTrace.hpp"
 #include "Vulkan/CuttingPlanes.hpp"
+#include <nanovdb/util/OpenToNanoVDB.h>
+#include <openvdb/tools/ValueTransformer.h>
+#include <openvdb/tools/LevelSetUtil.h>
 #include <imgui.h>
 #include <vector>
 #include <string>
 #include <functional>
 #include <chrono>
 #include <thread>
-#include <boost/preprocessor.hpp>
 
 #include <iostream>
 
@@ -67,7 +69,8 @@ int main(int argc, char* argv[])
 	bool defaultExample = true;
 	std::string gridFile = "";
 	std::string gridName = "";
-	if (argc != 3)
+	bool levelSet = true;
+	if (argc != 3 && argc != 4)
 	{
 		if (argc == 1)
 		{
@@ -81,9 +84,27 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		gridFile = argv[1];
-		gridName = argv[2];
-		defaultExample = false;
+		if (argc == 3)
+		{
+			gridFile = argv[1];
+			gridName = argv[2];
+			defaultExample = false;
+		}
+		else
+		{
+			if (argv[1] == "-l")
+			{
+				levelSet = true;
+			}
+			else
+			{
+				CoreLogInfo("Usage: VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe");
+				return 0;
+			}
+			gridFile = argv[2];
+			gridName = argv[3];
+			defaultExample =false;
+		}
 	}
 
 #pragma region Program options
@@ -271,7 +292,7 @@ int main(int argc, char* argv[])
 	openvdb::initialize();
 	if (defaultExample)
 	{
-		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/spots.vdb");
+		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/space.vdb");
 	}
 	else
 	{
@@ -289,7 +310,45 @@ int main(int argc, char* argv[])
 		CoreLogFatal("File \'%s\' could not be opened.", gridFile.c_str());
 		return 0;
 	}
-	auto grid = OpenVDBUtils::LoadGrid(gridFile, gridName);
+
+	openvdb::Vec3SGrid::Ptr grid;
+	if (levelSet)
+	{
+		auto levelSetGrid = OpenVDBUtils::LoadFloatGrid(gridFile, gridName);
+		
+		auto boolGrid = openvdb::tools::sdfInteriorMask(*levelSetGrid, 0.f);
+		struct Local
+		{
+			void operator()(const openvdb::BoolGrid::ValueOnCIter& iter,
+				openvdb::Vec3SGrid::Accessor& accessor)
+			{
+				bool val = iter.getValue();
+
+				if (val)
+				{
+					float colVal = .9f;
+					openvdb::Vec3s vecVal(colVal, colVal, colVal);
+					if (iter.isVoxelValue())
+					{
+						accessor.setValue(iter.getCoord(), vecVal);
+					}
+					else
+					{
+						openvdb::CoordBBox bbox;
+						iter.getBoundingBox(bbox);
+						accessor.getTree()->fill(bbox, vecVal);
+					}
+				}
+			}
+		};
+		Local local;
+		grid = openvdb::Vec3SGrid::create();
+		openvdb::tools::transformValues(boolGrid->cbeginValueOn(), *grid, local);
+	}
+	else
+	{
+		grid = OpenVDBUtils::LoadGrid(gridFile, gridName);
+	}
 	//openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
 	//auto gridAccessor = grid->getAccessor();
 	//
@@ -310,6 +369,11 @@ int main(int argc, char* argv[])
 	//		}
 	//	}
 	//}
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	grid->pruneGrid();
+	auto nanoHandle = nanovdb::openToNanoVDB(*grid);
+#endif
+	grid->tree().voxelizeActiveTiles();
 
 	auto hdStart = std::chrono::high_resolution_clock::now();
 	HashDAG hd{};
@@ -326,6 +390,21 @@ int main(int argc, char* argv[])
 	auto uploadEnd = std::chrono::high_resolution_clock::now();
 	msCount = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEnd - uploadStart).count();
 	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	CoreLogInfo("Total voxel count: %llu", grid->activeVoxelCount());
+	CoreLogInfo("DAG memory with Dado attributes: %u bytes", hd.GetMemoryDadoAttributes());
+	CoreLogInfo("memory with Dado attributes (no DAG): %u bytes", hd.GetMemoryNoDAGDadoAttributes());
+	CoreLogInfo("Memory compression ratio with Dado attributes: %f", hd.GetMemoryNoDAGDadoAttributes() / float(hd.GetMemoryDadoAttributes()));
+	CoreLogInfo("DAG memory with Dolonius attributes: %u bytes", hd.GetMemoryDoloniusAttributes());
+	CoreLogInfo("memory with Dolonius attributes (no DAG): %u bytes", hd.GetMemoryNoDAGDoloniusAttributes());
+	CoreLogInfo("Memory compression ratio with Dolonius attributes: %f", hd.GetMemoryNoDAGDoloniusAttributes() / float(hd.GetMemoryDoloniusAttributes()));
+	CoreLogInfo("Equivalent SVO size: %u bytes", hd.GetSVOInternalNodes() * 2 * sizeof(uint32_t) + hd.GetSVOLeafNodes() * sizeof(openvdb::Vec3s));
+	CoreLogInfo("DAG memory used: %u bytes", hd.GetMemoryUsed());
+	CoreLogInfo("Color attribute memory used: %u bytes", hd.GetColorMemorySize());
+	CoreLogInfo("NanoVDB upload size: %llu bytes", nanoHandle.size());
+	//HTStats stats = hd.GetHashTableStats();
+	//stats.Print();
+#endif
 #pragma endregion
 
 #pragma region Cutting planes
@@ -732,111 +811,114 @@ int main(int argc, char* argv[])
 
 				const float timeDelta = renderDelta * .001f;
 
-				VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
-					idTarget.DescriptorImageInfo.imageLayout, 1, 1,
-					VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
-					int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
-
-				VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
-					sizeof(ImageQueryResult), &imageQueryResult);
-
-				if (imageQueryResult.tree != 0xFFFFFFFF)
+				if (mouseX < window->GetWidth() && windowHeight - mouseY < window->GetHeight())
 				{
-					const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
-					tracingParameters.MousePosition =
+					VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
+						idTarget.DescriptorImageInfo.imageLayout, 1, 1,
+						VK_IMAGE_ASPECT_COLOR_BIT, graphicsCommandPool, graphicsQueue,
+						int32_t(mouseX), int32_t(windowHeight) - int32_t(mouseY));
+
+					VulkanUtils::Buffer::GetData(deviceInfo.Handle, idStagingBufferInfo.Memory,
+						sizeof(ImageQueryResult), &imageQueryResult);
+
+					if (imageQueryResult.tree != 0xFFFFFFFF)
 					{
-						treeOffset.x() + float(imageQueryResult.x),
-						treeOffset.y() + float(imageQueryResult.y),
-						treeOffset.z() + float(imageQueryResult.z)
-					};
-				}
-				else
-				{
-					tracingParameters.MousePosition = { FLT_MAX, FLT_MAX, FLT_MAX };
-				}
-
-				if (isMousePressedLeft && !GUI::Renderer::WantMouseCapture())
-				{
-					const int deltaX = int(lastMouseX) - int(mouseX);
-					const int deltaY = int(lastMouseY) - int(mouseY);
-
-					const float xMove = mouseSensitivity * deltaX * timeDelta;
-					const float yMove = mouseSensitivity * deltaY * timeDelta;
-
-					camera.Rotate({ 0, 0, 1 }, xMove);
-					camera.RotateLocal({ 1, 0, 0 }, yMove);
-				}
-				else if (isMousePressedRight/* && !wasMousePressedRight*/ && !GUI::Renderer::WantMouseCapture())
-				{
-					// TODO: layout transition?
-					if (mouseX < windowWidth && mouseY < windowHeight)
-					{
-						const int selectionRadius = selectionDiameter / 2;
-						const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
-						
-						struct TreeMinMax
+						const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
+						tracingParameters.MousePosition =
 						{
-							uint64_t min = 0xFFFFFFFFFFFFFFFF;
-							uint64_t max = 0;
+							treeOffset.x() + float(imageQueryResult.x),
+							treeOffset.y() + float(imageQueryResult.y),
+							treeOffset.z() + float(imageQueryResult.z)
 						};
+					}
+					else
+					{
+						tracingParameters.MousePosition = { FLT_MAX, FLT_MAX, FLT_MAX };
+					}
 
-						std::map<int, TreeMinMax> treeMinMax;
-						const int coordMin = -selectionDiameter / 2;
-						const int coordMax = selectionDiameter - selectionDiameter / 2;
-						if (imageQueryResult.tree != 0xFFFFFFFF)
+					if (isMousePressedLeft && !GUI::Renderer::WantMouseCapture())
+					{
+						const int deltaX = int(lastMouseX) - int(mouseX);
+						const int deltaY = int(lastMouseY) - int(mouseY);
+
+						const float xMove = mouseSensitivity * deltaX * timeDelta;
+						const float yMove = mouseSensitivity * deltaY * timeDelta;
+
+						camera.Rotate({ 0, 0, 1 }, xMove);
+						camera.RotateLocal({ 1, 0, 0 }, yMove);
+					}
+					else if (isMousePressedRight/* && !wasMousePressedRight*/ && !GUI::Renderer::WantMouseCapture())
+					{
+						// TODO: layout transition?
+						if (mouseX < windowWidth && mouseY < windowHeight)
 						{
-							const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
-							const int xOffset = imageQueryResult.x + treeOffset.x();
-							const int yOffset = imageQueryResult.y + treeOffset.y();
-							const int zOffset = imageQueryResult.z + treeOffset.z();
-							for (int x = coordMin + xOffset; x < coordMax + xOffset; ++x)
+							const int selectionRadius = selectionDiameter / 2;
+							const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
+
+							struct TreeMinMax
 							{
-								for (int y = coordMin + yOffset; y < coordMax + yOffset; ++y)
+								uint64_t min = 0xFFFFFFFFFFFFFFFF;
+								uint64_t max = 0;
+							};
+
+							std::map<int, TreeMinMax> treeMinMax;
+							const int coordMin = -selectionDiameter / 2;
+							const int coordMax = selectionDiameter - selectionDiameter / 2;
+							if (imageQueryResult.tree != 0xFFFFFFFF)
+							{
+								const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
+								const int xOffset = imageQueryResult.x + treeOffset.x();
+								const int yOffset = imageQueryResult.y + treeOffset.y();
+								const int zOffset = imageQueryResult.z + treeOffset.z();
+								for (int x = coordMin + xOffset; x < coordMax + xOffset; ++x)
 								{
-									for (int z = coordMin + zOffset; z < coordMax + zOffset; ++z)
+									for (int y = coordMin + yOffset; y < coordMax + yOffset; ++y)
 									{
-										const int tree = hd.GetCoordsTree({ x, y, z });
-										if (tree != -1)
+										for (int z = coordMin + zOffset; z < coordMax + zOffset; ++z)
 										{
-											const int xInTree = x % HTConstants::TREE_SPAN;
-											const int yInTree = y % HTConstants::TREE_SPAN;
-											const int zInTree = z % HTConstants::TREE_SPAN;
-
-											uint64_t voxelIndex = hd.ComputeVoxelIndex(tree, xInTree, yInTree, zInTree);
-											if (voxelIndex != 0xFFFFFFFFFFFFFFFF)
+											const int tree = hd.GetCoordsTree({ x, y, z });
+											if (tree != -1)
 											{
-												const int xFromMean = xOffset - x;
-												const int yFromMean = yOffset - y;
-												const int zFromMean = zOffset - z;
+												const int xInTree = x % HTConstants::TREE_SPAN;
+												const int yInTree = y % HTConstants::TREE_SPAN;
+												const int zInTree = z % HTConstants::TREE_SPAN;
 
-												if (xFromMean * xFromMean + yFromMean * yFromMean + zFromMean * zFromMean <= testDistance)
+												uint64_t voxelIndex = hd.ComputeVoxelIndex(tree, xInTree, yInTree, zInTree);
+												if (voxelIndex != 0xFFFFFFFFFFFFFFFF)
 												{
-													treeMinMax[tree].min = (std::min)(treeMinMax[tree].min, voxelIndex);
-													treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
+													const int xFromMean = xOffset - x;
+													const int yFromMean = yOffset - y;
+													const int zFromMean = zOffset - z;
 
-													//CoreLogInfo("%i, %i, %i", x, y, z);
-													hd.SetVoxelColor(tree, voxelIndex, { editColor[0], editColor[1], editColor[2] });
+													if (xFromMean * xFromMean + yFromMean * yFromMean + zFromMean * zFromMean <= testDistance)
+													{
+														treeMinMax[tree].min = (std::min)(treeMinMax[tree].min, voxelIndex);
+														treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
+
+														//CoreLogInfo("%i, %i, %i", x, y, z);
+														hd.SetVoxelColor(tree, voxelIndex, { editColor[0], editColor[1], editColor[2] });
+													}
 												}
 											}
 										}
 									}
 								}
 							}
-						}
-						
-						for (auto&& tree : treeMinMax)
-						{
-							VkDeviceSize offset = tree.second.min;
-							VkDeviceSize size = tree.second.max - tree.second.min + 1;
-							//CoreLogInfo("Size (%i): %llu", tree.first, size);
-							hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
-								tree.first, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
-								colorCompressionMargin);
+
+							for (auto&& tree : treeMinMax)
+							{
+								VkDeviceSize offset = tree.second.min;
+								VkDeviceSize size = tree.second.max - tree.second.min + 1;
+								//CoreLogInfo("Size (%i): %llu", tree.first, size);
+								hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
+									tree.first, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
+									colorCompressionMargin);
+							}
 						}
 					}
-				}
 
-				wasMousePressedRight = isMousePressedRight;
+					wasMousePressedRight = isMousePressedRight;
+				}
 
 				if (!GUI::Renderer::WantKeyboardCapture())
 				{

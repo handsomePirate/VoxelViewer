@@ -45,7 +45,7 @@ struct HTStats
 	float percentageOfMemoryUsed;
 	uint32_t levelNodeCount[HTConstants::LEAF_LEVEL + 1];
 
-	void Print(std::ostream& os) const;
+	void Print() const;
 };
 
 // TODO: We are only interested in color modifications, the infrastructure could be simplified when colors are in place.
@@ -117,6 +117,16 @@ public:
 	void UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, HashDAGGPUInfo& uploadInfo);
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	uint32_t GetMemoryDadoAttributes() const;
+	uint32_t GetMemoryDoloniusAttributes() const;
+	uint32_t GetMemoryUsed() const;
+	uint32_t GetMemoryNoDAGDadoAttributes() const;
+	uint32_t GetMemoryNoDAGDoloniusAttributes() const;
+	uint32_t GetSVOInternalNodes() const;
+	uint32_t GetSVOLeafNodes() const;
+#endif
+
 private:
 	/// Allocates a page from the pre-allocated page pool.
 	void AllocatePage(uint32_t page);
@@ -136,6 +146,10 @@ private:
 	/// Determines the size of a non-leaf node.
 	static uint32_t GetNodeSize(uint32_t* const ptr);
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	uint8_t GetFirstLeafMask(uint64_t leaf) const;
+#endif
+
 	/// The top of the already allocated pool pages. Starts at 1, 0 is reserved of un-allocated entries.
 	uint32_t poolTop_ = 1;
 	uint32_t poolSize_;
@@ -145,6 +159,14 @@ private:
 	uint32_t* pageTable_;
 	/// The array holding the sizes of all buckets present in the hash table.
 	uint32_t* bucketsSizes_;
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	uint32_t memoryDadoAttributes_ = 0;
+	uint32_t memoryDoloniusAttributes_ = 0;
+	uint32_t memoryNoDAGCompressionDado_ = 0;
+	uint32_t memoryNoDAGCompressionDolonius_ = 0;
+	uint32_t SVOInternalNodeCount_ = 0;
+	uint32_t SVOLeafNodeCount_ = 0;
+#endif
 };
 
 struct HashTree
@@ -227,7 +249,7 @@ public:
 	void UploadColorRangeToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, ColorGPUInfo& colorInfo, uint32_t tree, uint64_t offset, uint64_t size, float colorCompressionMargin = 0.f);
 
-	void SetBoundingBox(const BoundingBox& boundingBox);
+	void SetBoundingBox(const InternalBoundingBox& boundingBox);
 
 	int Bottom() const;
 	int Top() const;
@@ -248,9 +270,23 @@ public:
 	const Eigen::Vector3i& GetTreeOffset(int tree) const;
 	int GetCoordsTree(const Eigen::Vector3i& coords);
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	uint32_t GetMemoryDadoAttributes() const;
+	uint32_t GetMemoryDoloniusAttributes() const;
+	uint32_t GetMemoryUsed() const;
+	uint32_t GetMemoryNoDAGDadoAttributes() const;
+	uint32_t GetMemoryNoDAGDoloniusAttributes() const;
+	uint32_t GetSVOInternalNodes() const;
+	uint32_t GetSVOLeafNodes() const;
+#endif
+
+	HTStats GetHashTableStats() const;
+
+	uint32_t GetColorMemorySize() const;
+
 private:
 	/// Recurses through the tree and finds out if the specified voxel is on or off (internal implementation of IsActive).
-	bool Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t level, const BoundingBox& bbox) const;
+	bool Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t level, const InternalBoundingBox& bbox) const;
 
 	/// Returns the child mask of the specified node.
 	uint8_t GetNodeChildMask(HashTable::vptr_t node) const;
@@ -274,7 +310,7 @@ private:
 	HashTable ht_;
 	std::vector<HashTree> trees_;
 	std::vector<std::unique_ptr<Color>> treeColorArrays_;
-	BoundingBox boundingBox_;
+	InternalBoundingBox boundingBox_;
 	openvdb::Int32Grid::Ptr treeGrid_;
 	openvdb::Int32Grid::Accessor treeGridAccessor_;
 };

@@ -20,6 +20,11 @@ VkDeviceSize Color::GetBufferSize() const
 	return (VkDeviceSize)(voxelMap_.size() * sizeof(openvdb::Vec4s));
 }
 
+uint32_t Color::GetMemoryUsed() const
+{
+	return (uint32_t)(voxelMap_.size() * sizeof(openvdb::Vec3s));
+}
+
 void* Color::GetDataPointer()
 {
 	return voxelMap_.data();

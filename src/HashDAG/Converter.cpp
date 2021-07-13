@@ -49,7 +49,7 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 	int treeCount = roots.size();
 	// Initialize the HashDAG according to the height (and other parameters).
 	const int requiredPagesPerTree = GetTreePageRequirement();
-	hd.Init(requiredPagesPerTree * treeCount);
+	hd.Init(/*requiredPagesPerTree * treeCount*/ 2621448);
 
 	// Create an axis aligned box that represents the recursion into the tree.
 	AxisAlignedCubeI trackingCube;
@@ -57,7 +57,7 @@ void Converter::OpenVDBToDAG(openvdb::SharedPtr<openvdb::Vec3SGrid> grid, HashDA
 	trackingCube.span = { 32, 32, 32 };
 
 	auto bbox = grid->evalActiveVoxelBoundingBox();
-	BoundingBox hdBoundingBox;
+	InternalBoundingBox hdBoundingBox;
 	auto bboxStart = bbox.getStart();
 	auto bboxEnd = bbox.getEnd();
 	auto bboxSpan = bboxEnd - bboxStart;
@@ -122,15 +122,6 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 			}
 #endif
 
-			if (openvdbTrackingCube.span.x() == 32)
-			{
-				bool state;
-				openvdb::Vec3f value;
-				if (node->isConstant(value, state))
-				{
-					full = true;
-				}
-			}
 #ifdef DEBUG_CONVERTER
 			return HandleOpenvdbLevel<L1NodeType, 32>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth, newTreebbox);
 #else
@@ -156,17 +147,7 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 				ss << bbox << " |X| " << treebbox;
 				LogDebug("l2 node: %s", ss.str().c_str());
 			}
-#endif
-			if (openvdbTrackingCube.span.x() == 16)
-			{
-				bool state;
-				openvdb::Vec3f value;
-				if (node->isConstant(value, state))
-				{
-					full = true;
-				}
-			}
-#ifdef DEBUG_CONVERTER
+
 			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth, treebbox);
 #else
 			return HandleOpenvdbLevel<L2NodeType, 16>(openvdbTrackingCube, hd, hdColors, voxelIndex, level, full, node, depth);

@@ -1,14 +1,14 @@
 #pragma once
 #include <Eigen/Dense>
 
-struct BoundingBox
+struct InternalBoundingBox
 {
 	/// The position of the box's corner that has the least coordinate value in all axes.
 	Eigen::Vector3i pos;
 	/// The extents of the cube.
 	Eigen::Vector3i span;
 
-	static bool IsPointInCube(const BoundingBox& cube, Eigen::Vector3i point)
+	static bool IsPointInCube(const InternalBoundingBox& cube, Eigen::Vector3i point)
 	{
 		bool xIntersects = cube.pos.x() <= point.x() && cube.pos.x() + cube.span.x() > point.x();
 		bool yIntersects = cube.pos.y() <= point.y() && cube.pos.y() + cube.span.y() > point.y();
@@ -16,7 +16,7 @@ struct BoundingBox
 		return xIntersects && yIntersects && zIntersects;
 	}
 
-	static bool CubesIntersect(const BoundingBox& cube1, const BoundingBox& cube2)
+	static bool CubesIntersect(const InternalBoundingBox& cube1, const InternalBoundingBox& cube2)
 	{
 		bool xIntersects = !(cube2.pos.x() + cube2.span.x() <= cube1.pos.x() || cube1.pos.x() + cube1.span.x() <= cube2.pos.x());
 		bool yIntersects = !(cube2.pos.y() + cube2.span.y() <= cube1.pos.y() || cube1.pos.y() + cube1.span.y() <= cube2.pos.y());
@@ -24,7 +24,7 @@ struct BoundingBox
 		return xIntersects && yIntersects && zIntersects;
 	}
 
-	static void SplitCube(const BoundingBox& cube, BoundingBox children[8])
+	static void SplitCube(const InternalBoundingBox& cube, InternalBoundingBox children[8])
 	{
 		Eigen::Vector3i newSpan = cube.span / 2;
 
@@ -53,7 +53,7 @@ struct BoundingBox
 		children[7].span = newSpan;
 	}
 
-	friend std::ostream& operator<<(std::ostream& os, const BoundingBox& cube)
+	friend std::ostream& operator<<(std::ostream& os, const InternalBoundingBox& cube)
 	{
 		os << '[' << cube.pos.x() << ", " << cube.pos.y() << ", " << cube.pos.z() << "] -> "
 			<< '[' << cube.pos.x() + cube.span.x() - 1 << ", " << cube.pos.y() + cube.span.y() - 1 <<

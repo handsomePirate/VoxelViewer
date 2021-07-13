@@ -63,6 +63,7 @@ project "VoxelViewer"
 		"ext/openvdb/ext/boost/include",
 		"ext/openvdb/ext/tbb/include",
 		"ext/openvdb/include",
+		"ext/NanoVDB/include",
 	}
 
 	links {

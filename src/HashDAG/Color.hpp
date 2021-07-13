@@ -22,6 +22,7 @@ public:
 	bool Compressed() const;
 
 	VkDeviceSize GetBufferSize() const;
+	uint32_t GetMemoryUsed() const;
 	void* GetDataPointer();
 
 	void CompressSimilar(float epsilonMargin);

@@ -1,20 +1,18 @@
 #include "HashDAG.hpp"
 #include "Core/Logger/Logger.hpp"
 
-void HTStats::Print(std::ostream& os) const
+void HTStats::Print() const
 {
-	os << "Hash table stats.." << std::endl;
-	os << "\tTotal memory allocated (MB): " << memoryAllocatedBytes / (1024.f * 1024.f) << std::endl;
-	os << "\tPercentage of memory used to memory allocated (%): " << percentageOfMemoryUsed << std::endl;
-	os << "\tNumber of empty buckets: " << emptyBuckets << std::endl;
-	os << "\tEmpty to total bucket count ratio: " << emptyToTotalRatio << std::endl;
-	os << std::endl;
-	os << "\tAverage fullness percentage of top level buckets (%): " << avgTopBucketFullness << std::endl;
-	os << "\tAverage fullness percentage of bottom level buckets (%): " << avgBottomBucketFullness << std::endl;
-	os << "\tLevel node count (per level):" << std::endl;
+	CoreLogInfo("Total memory allocated (MB): %f", memoryAllocatedBytes / (1024.f * 1024.f));
+	CoreLogInfo("Percentage of memory used to memory allocated (percent): %f", percentageOfMemoryUsed);
+	CoreLogInfo("Number of empty buckets: %u", emptyBuckets);
+	CoreLogInfo("Empty to total bucket count ratio: %f", emptyToTotalRatio);
+	CoreLogInfo("Average fullness percentage of top level buckets (percent): %f", avgTopBucketFullness);
+	CoreLogInfo("Average fullness percentage of bottom level buckets (percent): %f", avgBottomBucketFullness);
+	CoreLogInfo("Level node count(per level) :");
 	for (int i = 0; i <= HTConstants::LEAF_LEVEL; ++i)
 	{
-		os << "\t\tl" << i << ": " << levelNodeCount[i] << std::endl;
+		CoreLogInfo("\tl%i:%u", i, levelNodeCount[i]);
 	}
 }
 
@@ -199,11 +197,24 @@ HashTable::vptr_t HashTable::FindOrAddLeaf(uint64_t leaf)
 
 	vptr_t ptr = FindLeafInBucket(bucket, leaf);
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	memoryNoDAGCompressionDado_ += 2 * sizeof(uint32_t);
+	memoryNoDAGCompressionDolonius_ += 2 * sizeof(uint32_t);
+	++SVOInternalNodeCount_;
+	uint8_t firstMask = GetFirstLeafMask(leaf);
+	SVOInternalNodeCount_ += __popcnt(uint32_t(firstMask));
+	SVOLeafNodeCount_ += __popcnt64(leaf);
+#endif
+
 	if (ptr == HTConstants::INVALID_POINTER)
 	{
 		// TODO: Thread-safe part.
 
 		ptr = AddLeaf(leaf, hash);
+#ifdef MEASURE_MEMORY_CONSUMPTION
+		memoryDadoAttributes_ += 2 * sizeof(uint32_t);
+		memoryDoloniusAttributes_ += 2 * sizeof(uint32_t);
+#endif
 	}
 
 	return ptr;
@@ -216,11 +227,28 @@ uint32_t HashTable::FindOrAddNode(uint32_t level, uint32_t nodeSize, uint32_t* c
 
 	vptr_t ptr = FindNodeInBucket(bucket, nodeSize, node);
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
+	memoryNoDAGCompressionDado_ += nodeSize * sizeof(uint32_t);
+	memoryNoDAGCompressionDolonius_ += ((nodeSize - 1) / 2 + 1) * sizeof(uint32_t);
+	if (level < HTConstants::MAX_LEVEL_COUNT - 8)
+	{
+		memoryNoDAGCompressionDolonius_ += sizeof(uint32_t);
+	}
+	++SVOInternalNodeCount_;
+#endif
 	if (ptr == HTConstants::INVALID_POINTER)
 	{
 		// TODO: Thread-safe part.
 
 		ptr = AddNode(level, nodeSize, node, hash);
+#ifdef MEASURE_MEMORY_CONSUMPTION
+		memoryDadoAttributes_ += nodeSize * sizeof(uint32_t);
+		memoryDoloniusAttributes_ += ((nodeSize - 1) / 2 + 1) * sizeof(uint32_t);
+		if (level < HTConstants::MAX_LEVEL_COUNT - 8)
+		{
+			memoryDoloniusAttributes_ += sizeof(uint32_t);
+		}
+#endif
 	}
 
 	return ptr;
@@ -406,6 +434,43 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::Destroy(deviceInfo, pagesStagingBufferInfo);
 }
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
+uint32_t HashTable::GetMemoryDadoAttributes() const
+{
+	return memoryDadoAttributes_;
+}
+
+uint32_t HashTable::GetMemoryDoloniusAttributes() const
+{
+	return memoryDoloniusAttributes_;
+}
+
+uint32_t HashTable::GetMemoryUsed() const
+{
+	return poolTop_ * HTConstants::PAGE_SIZE * sizeof(uint32_t);
+}
+
+uint32_t HashTable::GetMemoryNoDAGDadoAttributes() const
+{
+	return memoryNoDAGCompressionDado_;
+}
+
+uint32_t HashTable::GetMemoryNoDAGDoloniusAttributes() const
+{
+	return memoryNoDAGCompressionDolonius_;
+}
+
+uint32_t HashTable::GetSVOInternalNodes() const
+{
+	return SVOInternalNodeCount_;
+}
+
+uint32_t HashTable::GetSVOLeafNodes() const
+{
+	return SVOLeafNodeCount_;
+}
+#endif
+
 void HashTable::AllocatePage(uint32_t page)
 {
 	if (poolTop_ == poolSize_)
@@ -490,7 +555,20 @@ uint32_t HashTable::GetNodeSize(uint32_t* const ptr)
 {
 	// The child mask are only the lower 8 bits of the 32-bit entry. '__popcnt' counts the set bits in
 	// its argument. each child occupies 1 entry (node hash) +1 is for the child mask entry.
-	return __popcnt(*ptr & 0xFF) + 1;
+	return __popcnt(*ptr & 0xFF) * 2 + 1;
+}
+
+uint8_t HashTable::GetFirstLeafMask(uint64_t leaf) const
+{
+	return uint8_t(
+		((leaf & 0x00000000000000FF) == 0 ? 0 : 1 << 0) |
+		((leaf & 0x000000000000FF00) == 0 ? 0 : 1 << 1) |
+		((leaf & 0x0000000000FF0000) == 0 ? 0 : 1 << 2) |
+		((leaf & 0x00000000FF000000) == 0 ? 0 : 1 << 3) |
+		((leaf & 0x000000FF00000000) == 0 ? 0 : 1 << 4) |
+		((leaf & 0x0000FF0000000000) == 0 ? 0 : 1 << 5) |
+		((leaf & 0x00FF000000000000) == 0 ? 0 : 1 << 6) |
+		((leaf & 0xFF00000000000000) == 0 ? 0 : 1 << 7));
 }
 
 HashDAG::HashDAG()
@@ -532,11 +610,11 @@ bool HashDAG::IsActive(const Eigen::Vector3i& voxel) const
 {
 	for (int t = 0; t < trees_.size(); ++t)
 	{
-		BoundingBox bbox;
+		InternalBoundingBox bbox;
 		bbox.pos = trees_[t].rootOffset;
 		bbox.span = { HTConstants::TREE_SPAN, HTConstants::TREE_SPAN, HTConstants::TREE_SPAN };
 
-		if (BoundingBox::IsPointInCube(bbox, voxel))
+		if (InternalBoundingBox::IsPointInCube(bbox, voxel))
 		{
 			return Traverse(voxel, trees_[t].rootNode, 0, bbox);
 		}
@@ -708,7 +786,7 @@ bool HashDAG::CastRay(const Eigen::Vector3f& position, const Eigen::Vector3f& di
 	return false;
 }
 
-bool HashDAG::Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t level, const BoundingBox& bbox) const
+bool HashDAG::Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t level, const InternalBoundingBox& bbox) const
 {
 	auto nodePtr = ht_.Translate(node);
 
@@ -725,8 +803,8 @@ bool HashDAG::Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t lev
 		return leaf & (1ull << bitIndex);
 	}
 
-	BoundingBox bboxChildren[8];
-	BoundingBox::SplitCube(bbox, bboxChildren);
+	InternalBoundingBox bboxChildren[8];
+	InternalBoundingBox::SplitCube(bbox, bboxChildren);
 
 	uint32_t childMask = *nodePtr;
 
@@ -736,7 +814,7 @@ bool HashDAG::Traverse(const Eigen::Vector3i& voxel, uint32_t node, uint32_t lev
 		if ((1 << b) & childMask)
 		{
 			++childNumber;
-			if (BoundingBox::IsPointInCube(bboxChildren[b], voxel))
+			if (InternalBoundingBox::IsPointInCube(bboxChildren[b], voxel))
 			{
 				return Traverse(voxel, nodePtr[childNumber], level + 1, bboxChildren[b]);
 			}
@@ -1243,7 +1321,7 @@ void HashDAG::UploadColorRangeToGPU(const VulkanFactory::Device::DeviceInfo& dev
 	VulkanFactory::Buffer::Destroy(deviceInfo, colorsStagingBufferInfo);
 }
 
-void HashDAG::SetBoundingBox(const BoundingBox& boundingBox)
+void HashDAG::SetBoundingBox(const InternalBoundingBox& boundingBox)
 {
 	boundingBox_ = boundingBox;
 }
@@ -1384,6 +1462,58 @@ int HashDAG::GetCoordsTree(const Eigen::Vector3i& coords)
 			(coords.y() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN),
 			(coords.z() - int(HTConstants::TREE_SPAN - 1)) / int(HTConstants::TREE_SPAN)
 		});
+}
+
+#ifdef MEASURE_MEMORY_CONSUMPTION
+uint32_t HashDAG::GetMemoryDadoAttributes() const
+{
+	return ht_.GetMemoryDadoAttributes();
+}
+
+uint32_t HashDAG::GetMemoryDoloniusAttributes() const
+{
+	return ht_.GetMemoryDoloniusAttributes();
+}
+
+uint32_t HashDAG::GetMemoryUsed() const
+{
+	return ht_.GetMemoryUsed();
+}
+
+uint32_t HashDAG::GetMemoryNoDAGDadoAttributes() const
+{
+	return ht_.GetMemoryNoDAGDadoAttributes();
+}
+
+uint32_t HashDAG::GetMemoryNoDAGDoloniusAttributes() const
+{
+	return ht_.GetMemoryNoDAGDoloniusAttributes();
+}
+
+uint32_t HashDAG::GetSVOInternalNodes() const
+{
+	return ht_.GetSVOInternalNodes();
+}
+
+uint32_t HashDAG::GetSVOLeafNodes() const
+{
+	return ht_.GetSVOLeafNodes();
+}
+#endif
+
+HTStats HashDAG::GetHashTableStats() const
+{
+	return ht_.GetStats();
+}
+
+uint32_t HashDAG::GetColorMemorySize() const
+{
+	uint32_t result = 0;
+	for (auto&& treeColorArray : treeColorArrays_)
+	{
+		result += (uint32_t)treeColorArray->GetMemoryUsed();
+	}
+	return result;
 }
 
 TraversalPath::TraversalPath()
