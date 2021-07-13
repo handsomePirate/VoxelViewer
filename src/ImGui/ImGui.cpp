@@ -249,7 +249,7 @@ bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 			VulkanFactory::Buffer::Destroy(deviceInfo, vertexBuffer);
 		}
 		VulkanFactory::Buffer::Create("GUI Vertex Buffer", deviceInfo, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vertexBuffer);
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer);
 		vertexCount = imDrawData->TotalVtxCount;
 		updateCmdBuffers = true;
 	}
@@ -263,7 +263,7 @@ bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 			VulkanFactory::Buffer::Destroy(deviceInfo, indexBuffer);
 		}
 		VulkanFactory::Buffer::Create("GUI Index Buffer", deviceInfo, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, indexBuffer);
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer);
 		indexCount = imDrawData->TotalIdxCount;
 		updateCmdBuffers = true;
 	}
@@ -284,10 +284,6 @@ bool UpdateInternal(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		vtxDst += cmd_list->VtxBuffer.Size;
 		idxDst += cmd_list->IdxBuffer.Size;
 	}
-
-	// Flush to make writes visible to GPU
-	VulkanUtils::Memory::Flush(deviceInfo.Handle, vertexBuffer.Memory);
-	VulkanUtils::Memory::Flush(deviceInfo.Handle, indexBuffer.Memory);
 
 	VulkanUtils::Memory::Unmap(deviceInfo.Handle, vertexBuffer.Memory);
 	VulkanUtils::Memory::Unmap(deviceInfo.Handle, indexBuffer.Memory);

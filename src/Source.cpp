@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 	bool defaultExample = true;
 	std::string gridFile = "";
 	std::string gridName = "";
-	bool levelSet = true;
+	bool levelSet = false;
 	if (argc != 3 && argc != 4)
 	{
 		if (argc == 1)
@@ -292,7 +292,7 @@ int main(int argc, char* argv[])
 	openvdb::initialize();
 	if (defaultExample)
 	{
-		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/space.vdb");
+		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
 	}
 	else
 	{
