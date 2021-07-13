@@ -190,7 +190,7 @@ uint GetSecondVoxelCount(uint mask, uint nextChild)
 	return bitCount(mask & ((1u << nextChild) - 1));
 }
 
-uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv, float treeScale,
+uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv,
 	bool isRoot);
 
 vec3 GetVoxelColor(int tree, uint64_t voxelIndex)
@@ -244,7 +244,7 @@ float MinCoeff(vec3 v)
 }
 
 float rayTMin = 0;
-float rayTMax = 8196;
+float rayTMax = 100000000;
 
 void CutRay(vec3 rayPos, vec3 rayInv)
 {
@@ -278,67 +278,6 @@ void CutRay(vec3 rayPos, vec3 rayInv)
 	rayTMin = max(MaxCoeff(tMin), rayTMin);
 
 	return;
-	/*
-	if (rayInv.x > 0)
-	{
-		float tMax = maxDiff.x * rayInv.x;
-		rayTMax = min(tMax, rayTMax);
-	}
-	if (rayInv.x < 0)
-	{
-		float tMax = minDiff.x * rayInv.x;
-		rayTMax = min(tMax, rayTMax);
-	}
-	if (rayInv.y > 0)
-	{
-		float tMax = maxDiff.y * rayInv.y;
-		rayTMax = min(tMax, rayTMax);
-	}
-	if (rayInv.y < 0)
-	{
-		float tMax = mminDiff.y * rayInv.y;
-		rayTMax = min(tMax, rayTMax);
-	}
-	if (rayInv.z > 0)
-	{
-		float tMax = maxDiff.z * rayInv.z;
-		rayTMax = min(tMax, rayTMax);
-	}
-	if (maxDiff.x < 0)
-	{
-		float tMin = maxDiff.x * rayInv.x;
-		rayTMin = max(tMin, rayTMin);
-	}
-	if (maxDiff.y < 0)
-	{
-		float tMin = maxDiff.y * rayInv.y;
-		rayTMin = max(tMin, rayTMin);
-	}
-	if (maxDiff.z < 0)
-	{
-		float tMin = maxDiff.z * rayInv.z;
-		rayTMin = max(tMin, rayTMin);
-	}
-	*/
-	//svec3 cutMax = vec3(cuttingPlanes.xMax, cuttingPlanes.yMax, cuttingPlanes.zMax);
-	//float tMax = (cutMax.z - rayPos.z) * rayInv.z;
-	//rayTMax = (tMax < 0) ? rayTMax : min(tMax, rayTMax);
-	//vec3 cutMin = vec3(cuttingPlanes.xMin, cuttingPlanes.yMin, cuttingPlanes.zMin);
-	//float tMin = (rayPos.z - cutMin.z) * rayInv.z;
-	//rayTMin = (tMin < 0) ? rayTMin : max(tMin, rayTMin);
-	//if (rayTMax < rayTMin)
-	//{
-	//	float tmp = rayTMin;
-	//	rayTMin = rayTMax;
-	//	rayTMax = tmp;
-	//}
-	//vec3 posDiff = cutMax - rayPos;
-	//posDiff.x = 8196;//(posDiff.x < 0) ? 8196 : posDiff.x;
-	//posDiff.y = 8196;//(posDiff.y < 0) ? 8196 : posDiff.y;
-	//posDiff.z = (posDiff.z < 0) ? 8196 : posDiff.z;
-	//rayTMax = MinCoeff(posDiff * rayInv);
-	//vec3 cutMin = vec3(cuttingPlanes.xMin, cuttingPlanes.yMin, cuttingPlanes.zMin);
-	//rayTMin = MaxCoeff((rayPos - cutMin) / rayDir);
 }
 
 int TreeIndex(int tree)
@@ -354,6 +293,14 @@ void main()
 	uint voxelDetail = uint(parameters.voxelDetail);
 
 	vec3 rayDir = normalize(parameters.rayMin + pixX * parameters.rayDDx + pixY * parameters.rayDDy - parameters.cameraPosition);
+	const float epsilon = 0.0001;
+	rayDir.x = (rayDir.x >= 0 && rayDir.x < epsilon) ? epsilon : rayDir.x;
+	rayDir.x = (rayDir.x < 0 && rayDir.x > -epsilon) ? -epsilon : rayDir.x;
+	rayDir.y = (rayDir.y >= 0 && rayDir.y < epsilon) ? epsilon : rayDir.y;
+	rayDir.y = (rayDir.y < 0 && rayDir.y > -epsilon) ? -epsilon : rayDir.y;
+	rayDir.z = (rayDir.z >= 0 && rayDir.z < epsilon) ? epsilon : rayDir.z;
+	rayDir.z = (rayDir.z < 0 && rayDir.z > -epsilon) ? -epsilon : rayDir.z;
+
 	vec3 rayInv = vec3(1.f / rayDir.x, 1.f / rayDir.y, 1.f / rayDir.z);
 
 	CutRay(parameters.cameraPosition, rayInv);
@@ -384,7 +331,7 @@ void main()
 		stack[level].nodePtr = treeRoots[treeIndex].rootNode;
 		stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
 		stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPath,
-			rayPos, rayDir, rayInv, 1, true);
+			rayPos, rayDir, rayInv, true);
 		stack[level].voxelIndex = 0;
 
 		for (;;)
@@ -443,7 +390,7 @@ void main()
 				stack[level].nodePtr = GetChildNode(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 				stack[level].childMask = GetNodeChildMask(stack[level].nodePtr);
 				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPath, rayPos, rayDir,
-					rayInv, 1, false);
+					rayInv, false);
 				stack[level].voxelIndex = stack[level - 1].voxelIndex + 
 					GetChildOffset(stack[level - 1].nodePtr, nextChild, stack[level - 1].childMask);
 			}
@@ -468,7 +415,7 @@ void main()
 
 				stack[level].childMask = childMask;
 				stack[level].visitMask = stack[level].childMask & ComputeChildIntersectionMask(level, traversalPath, rayPos, rayDir,
-					rayInv, 1, false);
+					rayInv, false);
 				stack[level].voxelIndex = voxelIndex;
 			}
 		}
@@ -488,12 +435,12 @@ void main()
 	imageStore(idImage, ivec2(gl_GlobalInvocationID.xy), idColor);
 }
 
-uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv, float treeScale,
+uint ComputeChildIntersectionMask(uint level, uvec3 traversalPath, vec3 rayPos, vec3 rayDir, vec3 rayInv,
 	bool isRoot)
 {
 	const uint levelRank = pushConstants.maxLevels - level;
 	const float nodeRadius = float(1u << (levelRank - 1));
-	const vec3 nodeCenter = (vec3(nodeRadius) + PathAsPosition(traversalPath, levelRank)) * treeScale;
+	const vec3 nodeCenter = vec3(nodeRadius) + PathAsPosition(traversalPath, levelRank);
 
 	const vec3 rayToNodeCenter = nodeCenter - rayPos;
 
