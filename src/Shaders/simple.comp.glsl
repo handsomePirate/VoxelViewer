@@ -77,8 +77,6 @@ layout(binding = 11) uniform TracingParameters
 	vec3 rayDDx;
 	vec3 rayDDy;
 	vec3 mousePosition;
-	int voxelDetail;
-	float colorScale;
 	int selectionDiameter;
 } parameters;
 
@@ -290,8 +288,6 @@ void main()
 	uint pixX = gl_GlobalInvocationID.x;
 	uint pixY = gl_GlobalInvocationID.y;
 
-	uint voxelDetail = uint(parameters.voxelDetail);
-
 	vec3 rayDir = normalize(parameters.rayMin + pixX * parameters.rayDDx + pixY * parameters.rayDDy - parameters.cameraPosition);
 	const float epsilon = 0.0001;
 	rayDir.x = (rayDir.x >= 0 && rayDir.x < epsilon) ? epsilon : rayDir.x;
@@ -374,7 +370,7 @@ void main()
 				stack[level - 1].voxelIndex = stack[level - 1].voxelIndex + GetSecondVoxelCount(stack[level - 1].childMask, nextChild);
 			}
 
-			if (level == min(pushConstants.maxLevels, voxelDetail))
+			if (level == pushConstants.maxLevels)
 			{
 				// We have intersected a voxel and we have the path to it.
 				resultColor = GetVoxelColor(treeIndex, stack[level - 1].voxelIndex);
@@ -423,6 +419,7 @@ void main()
 
 	if (hit)
 	{
+		//resultColor = voxelPosition * length(voxelPosition) * 0.000007f * vec3(1, 0.1, 1);
 		float overlayAlpha = .6f;
 		vec3 overlayColor = vec3(.1f, .1f, .1f);
 		float dist = length(parameters.mousePosition - voxelPosition);

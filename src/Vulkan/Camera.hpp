@@ -12,8 +12,6 @@ struct TracingParameters
 	SHADER_ALIGN Eigen::Vector3f RayDDx;
 	SHADER_ALIGN Eigen::Vector3f RayDDy;
 	SHADER_ALIGN Eigen::Vector3f MousePosition;
-	int VoxelDetail;
-	float ColorScale;
 	int SelectionDiameter;
 };
 
