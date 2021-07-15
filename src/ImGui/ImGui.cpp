@@ -163,10 +163,6 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 
 		ImGui::SliderFloat("fov", &camera.Fov(), Camera::DegToRad(20.f), Camera::DegToRad(100.f));
 
-		ImGui::SliderInt("voxel detail", &tracingParameters.VoxelDetail, 1, HTConstants::MAX_LEVEL_COUNT);
-
-		ImGui::SliderFloat("color scale", &tracingParameters.ColorScale, .01f, .1f);
-
 		ImGui::SliderFloat("mouse sensitivity", &mouseSensitivity, 0.01f, 1.f);
 
 		ImGui::Separator();
