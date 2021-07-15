@@ -168,7 +168,7 @@ HashTable::vptr_t HashTable::FindNodeInBucket(bucket_t bucket, uint32_t nodeSize
 		// Here, we go through all 32-bit pairs (tree leafs) and look for the right one.
 		uint32_t entryCount = (std::min)(bucketSize - p, HTConstants::PAGE_SIZE);
 
-		if (p + nodeSize >= bucketSize)
+		if (p + nodeSize > bucketSize)
 		{
 			return HTConstants::INVALID_POINTER;
 		}
