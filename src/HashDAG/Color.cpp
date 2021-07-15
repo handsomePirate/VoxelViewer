@@ -22,7 +22,14 @@ VkDeviceSize Color::GetBufferSize() const
 
 uint32_t Color::GetMemoryUsed() const
 {
-	return (uint32_t)(voxelMap_.size() * sizeof(openvdb::Vec3s));
+	if (Compressed())
+	{
+		return (uint32_t)(compressed_.size() * sizeof(openvdb::Vec3s)) + (uint32_t)(indices_.size() * sizeof(index_t));
+	}
+	else
+	{
+		return (uint32_t)(voxelMap_.size() * sizeof(openvdb::Vec3s));
+	}
 }
 
 void* Color::GetDataPointer()
@@ -66,7 +73,7 @@ void Color::CompressSimilar(float epsilonMargin)
 
 VkDeviceSize Color::GetBufferSizeIndices() const
 {
-	return (VkDeviceSize)(indices_.size() * sizeof(index_t));;
+	return (VkDeviceSize)(indices_.size() * sizeof(index_t));
 }
 
 void* Color::GetDataPointerIndices()
