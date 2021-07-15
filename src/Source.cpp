@@ -290,6 +290,7 @@ int main(int argc, char* argv[])
 
 #pragma region OpenVDB init, grid loading, transformation to HashDAG
 	openvdb::initialize();
+	/*
 	if (defaultExample)
 	{
 		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
@@ -310,13 +311,14 @@ int main(int argc, char* argv[])
 		CoreLogFatal("File \'%s\' could not be opened.", gridFile.c_str());
 		return 0;
 	}
-
+	
 	openvdb::Vec3SGrid::Ptr grid;
 	if (levelSet)
 	{
 		auto levelSetGrid = OpenVDBUtils::LoadFloatGrid(gridFile, gridName);
 		
 		auto boolGrid = openvdb::tools::sdfInteriorMask(*levelSetGrid, 0.f);
+		//boolGrid->tree().voxelizeActiveTiles();
 		struct Local
 		{
 			void operator()(const openvdb::BoolGrid::ValueOnCIter& iter,
@@ -326,8 +328,14 @@ int main(int argc, char* argv[])
 
 				if (val)
 				{
-					float colVal = .9f;
-					openvdb::Vec3s vecVal(colVal, colVal, colVal);
+					//std::random_device randomDevice;
+					//std::mt19937 generator(randomDevice());
+					//std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
+					//float r = distribution_float_0_1(generator) / 256.f;
+					//float g = distribution_float_0_1(generator) / 256.f;
+					//float b = distribution_float_0_1(generator) / 256.f;
+					//openvdb::Vec3s vecVal(r, g, b);
+					openvdb::Vec3s vecVal(1, 1, 1);
 					if (iter.isVoxelValue())
 					{
 						accessor.setValue(iter.getCoord(), vecVal);
@@ -349,31 +357,83 @@ int main(int argc, char* argv[])
 	{
 		grid = OpenVDBUtils::LoadGrid(gridFile, gridName);
 	}
-	//openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
-	//auto gridAccessor = grid->getAccessor();
-	//
-	//const int height = 56;
-	//const int width = 8;
-	//for (int z = 0; z < height; ++z)
-	//{
-	//	for (int y = -width / 2; y < width / 2; ++y)
-	//	{
-	//		for (int x = -width / 2; x < width / 2; ++x)
-	//		{
-	//			openvdb::Vec3s color = {
-	//				((x + 1) + width / 2) / float(width),
-	//				((y + 1) + width / 2) / float(width),
-	//				z / float(height)
-	//			};
-	//			gridAccessor.setValue({ x, y, z }, color);
-	//		}
-	//	}
-	//}
+	*/
+	
+	openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
+	auto gridAccessor = grid->getAccessor();
+	const int startX = -256;
+	const int startY = -256;
+	const int startZ = -256;
+	const int endX = 256;
+	const int endY = 256;
+	const int endZ = 256;
+	std::random_device randomDevice;
+	std::mt19937 generator(1000);//randomDevice()
+	std::uniform_int_distribution<int> distribution_x(startX, endX);
+	std::uniform_int_distribution<int> distribution_y(startY, endY);
+	std::uniform_int_distribution<int> distribution_z(startZ, endZ);
+	std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
+	const int voxelCount = 1000000;
+
+	for (int v = 0; v < voxelCount; ++v)
+	{
+		int x = distribution_x(generator);
+		int y = distribution_y(generator);
+		int z = distribution_z(generator);
+
+		float r = distribution_float_0_1(generator) / 256.f;
+		float g = distribution_float_0_1(generator) / 256.f;
+		float b = distribution_float_0_1(generator) / 256.f;
+
+		gridAccessor.setValue({ x, y, z }, { r, g, b });
+	}
+	
+	/*
+	openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
+	auto gridAccessor = grid->getAccessor();
+	const int startX = 0;
+	const int startY = 0;
+	const int startZ = 0;
+	const int endX = 256;
+	const int endY = 256;
+	const int endZ = 256;
+	std::random_device randomDevice;
+	std::mt19937 generator(1000);//randomDevice()
+	std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
+	
+	for (int z = startZ; z < endZ; ++z)
+	{
+		for (int y = startY; y < endY; ++y)
+		{
+			for (int x = startX; x < endX; ++x)
+			{
+				bool isActive = true;
+				if ((x % 4 == 1 || x % 4 == 2) && (y % 4 == 1 || y % 4 == 2) && (z % 4 == 1 || z % 4 == 2))
+				{
+					isActive = false;
+				}
+				if (isActive)
+				{
+					float r = distribution_float_0_1(generator) / 256.f;
+					float g = distribution_float_0_1(generator) / 256.f;
+					float b = distribution_float_0_1(generator) / 256.f;
+	
+					gridAccessor.setValue({ x, y, z }, { r, g, b });
+				}
+			}
+		}
+	}
+	*/
 #ifdef MEASURE_MEMORY_CONSUMPTION
-	grid->pruneGrid();
-	auto nanoHandle = nanovdb::openToNanoVDB(*grid);
+	uint64_t nanoSize = 0;
+	{
+		//grid->pruneGrid();
+		//auto nanoHandle = nanovdb::openToNanoVDB(*grid);
+		//nanoSize = nanoHandle.size();
+		//CoreLogInfo("NanoVDB upload size: %llu bytes", nanoSize);
+	}
 #endif
-	grid->tree().voxelizeActiveTiles();
+	//grid->tree().voxelizeActiveTiles();
 
 	auto hdStart = std::chrono::high_resolution_clock::now();
 	HashDAG hd{};
@@ -392,16 +452,30 @@ int main(int argc, char* argv[])
 	CoreLogInfo("Hash DAG uploaded in %lld ms", msCount);
 #ifdef MEASURE_MEMORY_CONSUMPTION
 	CoreLogInfo("Total voxel count: %llu", grid->activeVoxelCount());
+	CoreLogInfo("Voxel size: %f, %f, %f", grid->voxelSize().x(), grid->voxelSize().y(), grid->voxelSize().z());
+	CoreLogInfo("Grid size: %i, %i, %i", abs(hd.Left() - hd.Right()), abs(hd.Top() - hd.Bottom()), abs(hd.Back() - hd.Front()));
 	CoreLogInfo("DAG memory with Dado attributes: %u bytes", hd.GetMemoryDadoAttributes());
 	CoreLogInfo("memory with Dado attributes (no DAG): %u bytes", hd.GetMemoryNoDAGDadoAttributes());
 	CoreLogInfo("Memory compression ratio with Dado attributes: %f", hd.GetMemoryNoDAGDadoAttributes() / float(hd.GetMemoryDadoAttributes()));
 	CoreLogInfo("DAG memory with Dolonius attributes: %u bytes", hd.GetMemoryDoloniusAttributes());
 	CoreLogInfo("memory with Dolonius attributes (no DAG): %u bytes", hd.GetMemoryNoDAGDoloniusAttributes());
 	CoreLogInfo("Memory compression ratio with Dolonius attributes: %f", hd.GetMemoryNoDAGDoloniusAttributes() / float(hd.GetMemoryDoloniusAttributes()));
-	CoreLogInfo("Equivalent SVO size: %u bytes", hd.GetSVOInternalNodes() * 2 * sizeof(uint32_t) + hd.GetSVOLeafNodes() * sizeof(openvdb::Vec3s));
+	uint32_t svo = hd.GetSVOInternalNodes() * 2 * sizeof(uint32_t) + hd.GetSVOLeafNodes() * sizeof(openvdb::Vec3s);
+	CoreLogInfo("Equivalent SVO size: %u bytes", svo);
 	CoreLogInfo("DAG memory used: %u bytes", hd.GetMemoryUsed());
 	CoreLogInfo("Color attribute memory used: %u bytes", hd.GetColorMemorySize());
-	CoreLogInfo("NanoVDB upload size: %llu bytes", nanoHandle.size());
+	auto vsize = grid->voxelSize();
+	auto t1 = fabs((hd.Back() - hd.Front()) / float(grid->voxelSize().z()));
+	auto t2 = fabs((hd.Top() - hd.Bottom()) / float(grid->voxelSize().y()));
+	auto t3 = fabs((hd.Left() - hd.Right()) / float(grid->voxelSize().x()));
+	uint64_t cube = uint64_t(t1 * t2 * t3);
+	CoreLogInfo("Dense memory used: %llu bytes", cube * (sizeof(openvdb::Vec3s) + 1));
+	CoreLogInfo("%llu,%u,%u,%f,%u,%f,%u,%u,%llu", nanoSize, hd.GetColorMemorySize(),
+		hd.GetMemoryDadoAttributes(), hd.GetMemoryNoDAGDadoAttributes() / float(hd.GetMemoryDadoAttributes()),
+		hd.GetMemoryDoloniusAttributes(), hd.GetMemoryNoDAGDoloniusAttributes() / float(hd.GetMemoryDoloniusAttributes()),
+		svo, svo - hd.GetMemoryDadoAttributes() - hd.GetColorMemorySize(),
+		cube * (sizeof(openvdb::Vec3s) + 1));
+	//CoreLogInfo("NanoVDB upload size: %llu bytes", nanoHandle.size());
 	//HTStats stats = hd.GetHashTableStats();
 	//stats.Print();
 #endif
@@ -526,14 +600,14 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -512, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
+	//Camera camera({ 0, -1024, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
+	//Camera camera({ 0, 0, -1024 }, { 0, 0, 1 }, { 1, 0, 0 }, 35.f);
+	Camera camera({ -1024, 0, 0 }, { 1, 0, 0 }, { 0, 0, 1 }, 35.f);
 
 	hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(), uploadInfo.SortedTreesStorageBuffer);
 
 	TracingParameters tracingParameters;
 	camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
-	tracingParameters.VoxelDetail = HTConstants::MAX_LEVEL_COUNT;
-	tracingParameters.ColorScale = .01f;
 	tracingParameters.MousePosition = { FLT_MAX, FLT_MAX, FLT_MAX };
 	VulkanFactory::Buffer::BufferInfo tracingUniformBuffer;
 	VulkanFactory::Buffer::Create("Tracing Uniform Buffer", deviceInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(TracingParameters),
@@ -755,6 +829,8 @@ int main(int argc, char* argv[])
 	int frameCounterPerSecond = 0;
 	auto last = std::chrono::high_resolution_clock::now();
 	float fps = 0.f;
+	uint64_t frameCounter = 0;
+	float avgFps = 0.f;
 
 	uint16_t lastMouseX = 0;
 	uint16_t lastMouseY = 0;
@@ -762,13 +838,18 @@ int main(int argc, char* argv[])
 	float mouseSensitivity = 0.1f;
 	Eigen::Vector3f editColor(1, 0, 0);
 
+	auto before = std::chrono::high_resolution_clock::now();
+
 	while (!window->ShouldClose())
 	{
 		window->PollMessages();
 
 		if (!window->IsMinimized())
 		{
-			auto before = std::chrono::high_resolution_clock::now();
+			if (fabs(camera.Position().x()) < 20 && fabs(camera.Position().y()) < 20 && fabs(camera.Position().z()) < 20)
+			{
+				CorePlatform.Quit();
+			}
 
 			bool shouldResize = false;
 			currentImageIndex = VulkanRender::PrepareFrame(renderingContext, windowData, shouldResize);
@@ -787,10 +868,10 @@ int main(int argc, char* argv[])
 				computeFrameData.Fence = computeFence;
 
 				VulkanRender::ComputeFrame(computeContext, computeFrameData);
-				// TODO: Update UBOs when there are some.
 
 				auto now = std::chrono::high_resolution_clock::now();
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
+				before = std::chrono::high_resolution_clock::now();
 
 				auto millisecondCount = std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count();
 				if (millisecondCount > 1000)
@@ -802,6 +883,12 @@ int main(int argc, char* argv[])
 
 				++frameCounterPerSecond;
 
+				if (fps > 0)
+				{
+					avgFps = (avgFps * frameCounter + fps) / (frameCounter + 1);
+					++frameCounter;
+				}
+
 				uint16_t mouseX = CoreInput.GetMouseX();
 				uint16_t mouseY = CoreInput.GetMouseY();
 				window->ClipMousePosition(mouseX, mouseY);
@@ -809,7 +896,7 @@ int main(int argc, char* argv[])
 				const bool isMousePressedLeft = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Left);
 				const bool isMousePressedRight = CoreInput.IsMouseButtonPressed(Core::Input::MouseButtons::Right);
 
-				const float timeDelta = renderDelta * .001f;
+				const float timeDelta = renderDelta * .005f;
 
 				if (mouseX < window->GetWidth() && windowHeight - mouseY < window->GetHeight())
 				{
@@ -951,6 +1038,7 @@ int main(int argc, char* argv[])
 					hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(),
 						uploadInfo.SortedTreesStorageBuffer);
 				}
+				camera.MoveLocal({ 0, 0, 10.f * timeDelta });
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				tracingParameters.SelectionDiameter = selectionDiameter;
@@ -1015,6 +1103,7 @@ int main(int argc, char* argv[])
 
 				auto now = std::chrono::high_resolution_clock::now();
 				auto renderDelta = std::chrono::duration<float, std::milli>(now - before).count();
+				before = std::chrono::high_resolution_clock::now();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
 					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor);
@@ -1129,6 +1218,8 @@ int main(int argc, char* argv[])
 		}
 	}
 	vkDeviceWaitIdle(deviceInfo.Handle);
+
+	CoreLogInfo("avg fps: %f", avgFps);
 #pragma endregion
 	
 	//=========================== Destroying Vulkan objects ==========================
