@@ -179,19 +179,22 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	}
 	else
 	{
-		ImGui::ColorPicker3("drawing color", &editColor[0]);
+		ImGui::Text("Color");
+		ImGui::ColorPicker3("", &editColor[0]);
 
 		ImGui::Separator();
 
-		ImGui::SliderFloat("x min plane", &cuttingPlanes.xMin, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
-		ImGui::SliderFloat("x max plane", &cuttingPlanes.xMax, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
-		ImGui::SliderFloat("y min plane", &cuttingPlanes.yMin, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
-		ImGui::SliderFloat("y max plane", &cuttingPlanes.yMax, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
-		ImGui::SliderFloat("z min plane", &cuttingPlanes.zMin, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
-		ImGui::SliderFloat("z max plane", &cuttingPlanes.zMax, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
+		ImGui::Text("Cutting planes");
+		ImGui::SliderFloat("min x", &cuttingPlanes.xMin, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
+		ImGui::SliderFloat("max x", &cuttingPlanes.xMax, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
+		ImGui::SliderFloat("min y", &cuttingPlanes.yMin, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
+		ImGui::SliderFloat("max y", &cuttingPlanes.yMax, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
+		ImGui::SliderFloat("min z", &cuttingPlanes.zMin, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
+		ImGui::SliderFloat("max z", &cuttingPlanes.zMax, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
 
 		ImGui::Separator();
 
+		ImGui::Text("Tool type");
 		if (ImGui::RadioButton("Brush", tool == EditingTool::Brush))
 		{
 			tool = EditingTool::Brush;
