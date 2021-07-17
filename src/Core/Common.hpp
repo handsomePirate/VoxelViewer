@@ -4,7 +4,7 @@
 
 //#define LOGGER_DO_TRACE
 //#define IMGUI_LOGGER_USE_COLORS
-#define MEASURE_MEMORY_CONSUMPTION
+//#define MEASURE_MEMORY_CONSUMPTION
 
 #include <vulkan/vulkan.hpp>
 
