@@ -92,7 +92,7 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
 	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity,
-	Eigen::Vector3f& editColor)
+	Eigen::Vector3f& editColor, EditingTool& tool)
 {
 	static CuttingPlanes cuttingPlanesMinMax = cuttingPlanes;
 
@@ -144,7 +144,7 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 
 	ImGui::NewFrame();
 
-	if (!ImGui::Begin("Info", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	if (!ImGui::Begin("Info & Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		ImGui::End();
 	}
@@ -165,15 +165,6 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 
 		ImGui::SliderFloat("mouse sensitivity", &mouseSensitivity, 0.01f, 1.f);
 
-		ImGui::Separator();
-
-		ImGui::SliderFloat("x min plane", &cuttingPlanes.xMin, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
-		ImGui::SliderFloat("x max plane", &cuttingPlanes.xMax, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
-		ImGui::SliderFloat("y min plane", &cuttingPlanes.yMin, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
-		ImGui::SliderFloat("y max plane", &cuttingPlanes.yMax, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
-		ImGui::SliderFloat("z min plane", &cuttingPlanes.zMin, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
-		ImGui::SliderFloat("z max plane", &cuttingPlanes.zMax, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
-
 		Core::LoggerType resultingTypes = (Core::LoggerType)
 			((guiLogger ? (int)Core::LoggerType::ImGui : 0) |
 			(consoleLogger ? (int)Core::LoggerType::Console : 0));
@@ -189,6 +180,31 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	else
 	{
 		ImGui::ColorPicker3("drawing color", &editColor[0]);
+
+		ImGui::Separator();
+
+		ImGui::SliderFloat("x min plane", &cuttingPlanes.xMin, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
+		ImGui::SliderFloat("x max plane", &cuttingPlanes.xMax, cuttingPlanesMinMax.xMin, cuttingPlanesMinMax.xMax);
+		ImGui::SliderFloat("y min plane", &cuttingPlanes.yMin, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
+		ImGui::SliderFloat("y max plane", &cuttingPlanes.yMax, cuttingPlanesMinMax.yMin, cuttingPlanesMinMax.yMax);
+		ImGui::SliderFloat("z min plane", &cuttingPlanes.zMin, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
+		ImGui::SliderFloat("z max plane", &cuttingPlanes.zMax, cuttingPlanesMinMax.zMin, cuttingPlanesMinMax.zMax);
+
+		ImGui::Separator();
+
+		if (ImGui::RadioButton("Brush", tool == EditingTool::Brush))
+		{
+			tool = EditingTool::Brush;
+		}
+		if (ImGui::RadioButton("Copy", tool == EditingTool::Copy))
+		{
+			tool = EditingTool::Copy;
+		}
+		if (ImGui::RadioButton("Fill", tool == EditingTool::Fill))
+		{
+			tool = EditingTool::Fill;
+		}
+
 		ImGui::End();
 	}
 

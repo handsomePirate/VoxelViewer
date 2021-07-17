@@ -850,13 +850,7 @@ int main(int argc, char* argv[])
 	float mouseSensitivity = 0.1f;
 	Eigen::Vector3f editColor(1, 0, 0);
 
-	enum class Tool
-	{
-		Brush,
-		Copy,
-		Fill,
-		ToolCount
-	} toolSelected = Tool::Fill;
+	GUI::EditingTool toolSelected = GUI::EditingTool::Fill;
 
 	Eigen::Vector3i copyPosition = { INT_MAX, INT_MAX, INT_MAX };
 	Eigen::Vector3i copyStart = { INT_MAX, INT_MAX, INT_MAX };
@@ -975,7 +969,7 @@ int main(int argc, char* argv[])
 
 							openvdb::Vec3s editColorOpenvdb = { editColor[0], editColor[1], editColor[2] };
 
-							if (toolSelected == Tool::Brush)
+							if (toolSelected == GUI::EditingTool::Brush)
 							{
 								const int selectionRadius = selectionDiameter / 2;
 								const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
@@ -1023,7 +1017,7 @@ int main(int argc, char* argv[])
 									}
 								}
 							}
-							else if (toolSelected == Tool::Copy)
+							else if (toolSelected == GUI::EditingTool::Copy)
 							{
 								const bool isControlPressed = CoreInput.IsKeyPressed(Core::Input::Keys::Control);
 
@@ -1134,7 +1128,7 @@ int main(int argc, char* argv[])
 									}
 								}
 							}
-							else if (toolSelected == Tool::Fill)
+							else if (toolSelected == GUI::EditingTool::Fill)
 							{
 								if (imageQueryResult.tree != 0xFFFFFFFF)
 								{
@@ -1273,7 +1267,7 @@ int main(int argc, char* argv[])
 #endif
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
-				if (toolSelected == Tool::Brush || toolSelected == Tool::Copy)
+				if (toolSelected == GUI::EditingTool::Brush || toolSelected == GUI::EditingTool::Copy)
 				{
 					tracingParameters.SelectionDiameter = selectionDiameter;
 				}
@@ -1295,7 +1289,7 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor, toolSelected);
 			}
 			
 			if (shouldResize)
@@ -1345,7 +1339,7 @@ int main(int argc, char* argv[])
 				before = std::chrono::high_resolution_clock::now();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor, toolSelected);
 			}
 			
 			{

@@ -10,6 +10,14 @@
 
 namespace GUI
 {
+	enum class EditingTool
+	{
+		Brush,
+		Copy,
+		Fill,
+		ToolCount
+	};
+
 	class Renderer
 	{
 	public:
@@ -19,7 +27,7 @@ namespace GUI
 			VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 			Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
 			TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity,
-			Eigen::Vector3f& editColor);
+			Eigen::Vector3f& editColor, EditingTool& tool);
 		static void Draw(VkCommandBuffer commandBuffer, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
 			VkDescriptorSet descriptorSet, VulkanUtils::PushConstantBlock* pushConstantBlock,
 			const VulkanFactory::Buffer::BufferInfo& vertexBuffer, const VulkanFactory::Buffer::BufferInfo& indexBuffer);
