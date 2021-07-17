@@ -326,7 +326,7 @@ uint32_t Converter::ConstructHashDAG(const AxisAlignedCubeI& openvdbTrackingCube
 											64 * (xLeaf + xOffset[i] * 4 + xOffset[leafPart] * 2);
 
 										uint64_t colorVoxelIndex = voxelIndex + voxelSum++;
-										hdColors.Set(colorVoxelIndex, leafColors[allValueIndex]);
+										hdColors.Set(colorVoxelIndex, leafColors[allValueIndex], true);
 									}
 								}
 							}

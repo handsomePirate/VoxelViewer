@@ -265,6 +265,14 @@ public:
 	void SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::Vec3s& color);
 	openvdb::Vec3s GetVoxelColor(uint32_t tree, uint64_t voxelIndex) const;
 
+	void StartColorOperation();
+	void EndColorOperation();
+
+	int GetTreeCount() const;
+
+	bool Undo(int tree, uint64_t& rangeStart, uint64_t& rangeEnd);
+	bool Redo(int tree, uint64_t& rangeStart, uint64_t& rangeEnd);
+
 	void SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer);
 

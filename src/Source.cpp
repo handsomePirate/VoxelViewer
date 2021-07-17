@@ -850,7 +850,7 @@ int main(int argc, char* argv[])
 	float mouseSensitivity = 0.1f;
 	Eigen::Vector3f editColor(1, 0, 0);
 
-	GUI::EditingTool toolSelected = GUI::EditingTool::Fill;
+	GUI::EditingTool toolSelected = GUI::EditingTool::Brush;
 
 	Eigen::Vector3i copyPosition = { INT_MAX, INT_MAX, INT_MAX };
 	Eigen::Vector3i copyStart = { INT_MAX, INT_MAX, INT_MAX };
@@ -941,6 +941,11 @@ int main(int argc, char* argv[])
 					else
 					{
 						tracingParameters.MousePosition = { FLT_MAX, FLT_MAX, FLT_MAX };
+					}
+
+					if (!wasMousePressedRight && isMousePressedRight)
+					{
+						hd.StartColorOperation();
 					}
 
 					if (isMousePressedLeft && !GUI::Renderer::WantMouseCapture())
@@ -1216,6 +1221,11 @@ int main(int argc, char* argv[])
 						}
 					}
 
+					if (wasMousePressedRight && !isMousePressedRight)
+					{
+						hd.EndColorOperation();
+					}
+
 					wasMousePressedRight = isMousePressedRight;
 				}
 
@@ -1249,6 +1259,56 @@ int main(int argc, char* argv[])
 
 					hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(),
 						uploadInfo.SortedTreesStorageBuffer);
+
+					static bool lastPressedZ = false;
+					bool pressedZ = CoreInput.IsKeyPressed(Core::Input::Keys::Z);
+
+					if (CoreInput.IsKeyPressed(Core::Input::Keys::Control) && pressedZ && !lastPressedZ)
+					{
+						int treeCount = hd.GetTreeCount();
+
+						for (int t = 0; t < treeCount; ++t)
+						{
+							uint64_t rangeStart = 0;
+							uint64_t rangeEnd = 0;
+							if (hd.Undo(t, rangeStart, rangeEnd) && rangeStart < rangeEnd)
+							{
+								VkDeviceSize offset = rangeStart;
+								VkDeviceSize size = rangeEnd - rangeStart;
+								//CoreLogInfo("Size (%i): %llu", tree.first, size);
+								hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
+									t, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
+									colorCompressionMargin);
+							}
+						}
+					}
+
+					lastPressedZ = pressedZ;
+
+					static bool lastPressedY = false;
+					bool pressedY = CoreInput.IsKeyPressed(Core::Input::Keys::Y);
+
+					if (CoreInput.IsKeyPressed(Core::Input::Keys::Control) && pressedY && !lastPressedY)
+					{
+						int treeCount = hd.GetTreeCount();
+
+						for (int t = 0; t < treeCount; ++t)
+						{
+							uint64_t rangeStart = 0;
+							uint64_t rangeEnd = 0;
+							if (hd.Redo(t, rangeStart, rangeEnd) && rangeStart < rangeEnd)
+							{
+								VkDeviceSize offset = rangeStart;
+								VkDeviceSize size = rangeEnd - rangeStart;
+								//CoreLogInfo("Size (%i): %llu", tree.first, size);
+								hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
+									t, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
+									colorCompressionMargin);
+				}
+						}
+					}
+
+					lastPressedY = pressedY;
 				}
 #ifdef PRE_ANIMATE_CAMERA
 				camera.MoveLocal({ 0, 0, 10.f * timeDelta });

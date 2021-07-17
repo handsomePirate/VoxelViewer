@@ -1405,6 +1405,37 @@ openvdb::Vec3s HashDAG::GetVoxelColor(uint32_t tree, uint64_t voxelIndex) const
 	return treeColorArrays_[tree]->Get(voxelIndex);
 }
 
+void HashDAG::StartColorOperation()
+{
+	for (int t = 0; t < treeColorArrays_.size(); ++t)
+	{
+		treeColorArrays_[t]->StartOperation();
+	}
+}
+
+void HashDAG::EndColorOperation()
+{
+	for (int t = 0; t < treeColorArrays_.size(); ++t)
+	{
+		treeColorArrays_[t]->EndOperation();
+	}
+}
+
+int HashDAG::GetTreeCount() const
+{
+	return treeColorArrays_.size();
+}
+
+bool HashDAG::Undo(int tree, uint64_t& rangeStart, uint64_t& rangeEnd)
+{
+	return treeColorArrays_[tree]->Undo(rangeStart, rangeEnd);
+}
+
+bool HashDAG::Redo(int tree, uint64_t& rangeStart, uint64_t& rangeEnd)
+{
+	return treeColorArrays_[tree]->Redo(rangeStart, rangeEnd);
+}
+
 void HashDAG::SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 	VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer)
 {
