@@ -15,6 +15,13 @@ struct TracingParameters
 	int SelectionDiameter;
 };
 
+struct CameraSetup
+{
+	Eigen::Vector3f Position;
+	Eigen::Vector3f Forward;
+	Eigen::Vector3f Right;
+};
+
 class Camera
 {
 public:
@@ -22,6 +29,7 @@ public:
 	Camera() = default;
 	~Camera() = default;
 
+	void Set(const CameraSetup& setup);
 	void Rotate(const Eigen::Vector3f& axis, const float angle);
 	void RotateLocal(const Eigen::Vector3f& axis, const float angle);
 

@@ -8,6 +8,14 @@ Camera::Camera(const Eigen::Vector3f& position, const Eigen::Vector3f& forward, 
 	fov_(DegToRad(fov))
 {}
 
+void Camera::Set(const CameraSetup& setup)
+{
+	position_ = setup.Position;
+	forward_ = setup.Forward.normalized();
+	right_ = setup.Right.normalized();
+	up_ = right_.cross(forward_);
+}
+
 void Camera::Rotate(const Eigen::Vector3f& axis, const float angle)
 {
 	if (axis.isZero() || angle == 0) { return; }
