@@ -291,7 +291,9 @@ int main(int argc, char* argv[])
 
 #pragma region OpenVDB init, grid loading, transformation to HashDAG
 	openvdb::initialize();
-	/*
+
+#ifndef PROCEDURAL_GRID
+
 	if (defaultExample)
 	{
 		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
@@ -329,14 +331,14 @@ int main(int argc, char* argv[])
 
 				if (val)
 				{
-					//std::random_device randomDevice;
-					//std::mt19937 generator(randomDevice());
-					//std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
-					//float r = distribution_float_0_1(generator) / 256.f;
-					//float g = distribution_float_0_1(generator) / 256.f;
-					//float b = distribution_float_0_1(generator) / 256.f;
-					//openvdb::Vec3s vecVal(r, g, b);
-					openvdb::Vec3s vecVal(1, 1, 1);
+					std::random_device randomDevice;
+					std::mt19937 generator(randomDevice());
+					std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
+					float r = distribution_float_0_1(generator) / 256.f;
+					float g = distribution_float_0_1(generator) / 256.f;
+					float b = distribution_float_0_1(generator) / 256.f;
+					openvdb::Vec3s vecVal(r, g, b);
+					//openvdb::Vec3s vecVal(1, 1, 1);
 					if (iter.isVoxelValue())
 					{
 						accessor.setValue(iter.getCoord(), vecVal);
@@ -358,8 +360,9 @@ int main(int argc, char* argv[])
 	{
 		grid = OpenVDBUtils::LoadGrid(gridFile, gridName);
 	}
-	*/
-	
+
+#elif (PROCEDURAL_GRID == 0)
+
 	openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
 	auto gridAccessor = grid->getAccessor();
 	const int startX = -256;
@@ -389,7 +392,8 @@ int main(int argc, char* argv[])
 		gridAccessor.setValue({ x, y, z }, { r, g, b });
 	}
 	
-	/*
+#elif (PROCEDURAL_GRID == 1)
+
 	openvdb::Vec3SGrid::Ptr grid = openvdb::createGrid<openvdb::Vec3SGrid>();
 	auto gridAccessor = grid->getAccessor();
 	const int startX = 0;
@@ -424,7 +428,9 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	*/
+	
+#endif
+
 #ifdef MEASURE_MEMORY_CONSUMPTION
 	uint64_t nanoSize = 0;
 	{
@@ -603,12 +609,12 @@ int main(int argc, char* argv[])
 
 	Camera camera({ 0, -1024, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
 
+#ifdef PRE_ANIMATE_CAMERA
 	int currentSetup = 0;
 	std::array<CameraSetup, 2> cameraSetups;
 	cameraSetups[0] = { { 0, 0, -1024 }, { 0, 0, 1 }, { 1, 0, 0 } };
 	cameraSetups[1] = { { -1024, 0, 0 }, { 1, 0, 0 }, { 0, 0, 1 } };
-	//Camera camera({ 0, 0, -1024 }, { 0, 0, 1 }, { 1, 0, 0 }, 35.f);
-	//Camera camera({ -1024, 0, 0 }, { 1, 0, 0 }, { 0, 0, 1 }, 35.f);
+#endif
 
 	hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(), uploadInfo.SortedTreesStorageBuffer);
 
@@ -850,13 +856,15 @@ int main(int argc, char* argv[])
 		Copy,
 		Fill,
 		ToolCount
-	} toolSelected = Tool::Copy;
+	} toolSelected = Tool::Fill;
 
 	Eigen::Vector3i copyPosition = { INT_MAX, INT_MAX, INT_MAX };
 	Eigen::Vector3i copyStart = { INT_MAX, INT_MAX, INT_MAX };
 	uint32_t copyTree = 0xFFFFFFFF;
 
+#ifdef PRE_ANIMATE_CAMERA
 	std::array<float, 150000> fpsHistory;
+#endif
 
 	auto before = std::chrono::high_resolution_clock::now();
 
@@ -866,19 +874,6 @@ int main(int argc, char* argv[])
 
 		if (!window->IsMinimized())
 		{
-			if (fabs(camera.Position().x()) < 20 && fabs(camera.Position().y()) < 20 && fabs(camera.Position().z()) < 20)
-			{
-				if (currentSetup == cameraSetups.size())
-				{
-					CorePlatform.Quit();
-				}
-				else
-				{
-					camera.Set(cameraSetups[currentSetup++]);
-					camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
-				}
-			}
-
 			bool shouldResize = false;
 			currentImageIndex = VulkanRender::PrepareFrame(renderingContext, windowData, shouldResize);
 
@@ -914,7 +909,9 @@ int main(int argc, char* argv[])
 				if (fps > 0)
 				{
 					avgFps = (avgFps * frameCounter + fps) / (frameCounter + 1);
+#ifdef PRE_ANIMATE_CAMERA
 					fpsHistory[frameCounter] = fps;
+#endif
 					++frameCounter;
 				}
 
@@ -1259,8 +1256,9 @@ int main(int argc, char* argv[])
 					hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(),
 						uploadInfo.SortedTreesStorageBuffer);
 				}
+#ifdef PRE_ANIMATE_CAMERA
 				camera.MoveLocal({ 0, 0, 10.f * timeDelta });
-
+				
 				if (fabs(camera.Position().x()) < 20 && fabs(camera.Position().y()) < 20 && fabs(camera.Position().z()) < 20)
 				{
 					if (currentSetup == cameraSetups.size())
@@ -1272,6 +1270,7 @@ int main(int argc, char* argv[])
 						camera.Set(cameraSetups[currentSetup++]);
 					}
 				}
+#endif
 
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
 				if (toolSelected == Tool::Brush || toolSelected == Tool::Copy)
@@ -1459,9 +1458,12 @@ int main(int argc, char* argv[])
 	}
 	vkDeviceWaitIdle(deviceInfo.Handle);
 
+#ifdef PRE_ANIMATE_CAMERA
 	std::sort(fpsHistory.begin(), fpsHistory.begin() + frameCounter);
 
-	CoreLogInfo("frame stats: %f,%f,%f,%f,%f", fpsHistory[0], fpsHistory[int(frameCounter * .25f)], fpsHistory[int(frameCounter / 2)], fpsHistory[int(frameCounter * .75f)], fpsHistory[frameCounter - 1]);
+	CoreLogInfo("frame stats: %f,%f,%f,%f,%f",
+		fpsHistory[0], fpsHistory[int(frameCounter * .25f)], fpsHistory[int(frameCounter / 2)], fpsHistory[int(frameCounter * .75f)], fpsHistory[frameCounter - 1]);
+#endif
 #pragma endregion
 	
 	//=========================== Destroying Vulkan objects ==========================
