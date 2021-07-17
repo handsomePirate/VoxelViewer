@@ -263,12 +263,13 @@ public:
 	uint64_t ComputeVoxelIndex(uint32_t tree, uint32_t x, uint32_t y, uint32_t z) const;
 
 	void SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::Vec3s& color);
+	openvdb::Vec3s GetVoxelColor(uint32_t tree, uint64_t voxelIndex) const;
 
 	void SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 		VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer);
 
 	const Eigen::Vector3i& GetTreeOffset(int tree) const;
-	int GetCoordsTree(const Eigen::Vector3i& coords);
+	uint32_t GetCoordsTree(const Eigen::Vector3i& coords) const;
 
 #ifdef MEASURE_MEMORY_CONSUMPTION
 	uint32_t GetMemoryDadoAttributes() const;

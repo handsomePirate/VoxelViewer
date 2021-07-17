@@ -25,6 +25,7 @@
 #include <functional>
 #include <chrono>
 #include <thread>
+#include <stack>
 
 #include <iostream>
 
@@ -318,7 +319,7 @@ int main(int argc, char* argv[])
 		auto levelSetGrid = OpenVDBUtils::LoadFloatGrid(gridFile, gridName);
 		
 		auto boolGrid = openvdb::tools::sdfInteriorMask(*levelSetGrid, 0.f);
-		//boolGrid->tree().voxelizeActiveTiles();
+		boolGrid->tree().voxelizeActiveTiles();
 		struct Local
 		{
 			void operator()(const openvdb::BoolGrid::ValueOnCIter& iter,
@@ -476,8 +477,8 @@ int main(int argc, char* argv[])
 		svo, svo - hd.GetMemoryDadoAttributes() - hd.GetColorMemorySize(),
 		cube * (sizeof(openvdb::Vec3s) + 1));
 	//CoreLogInfo("NanoVDB upload size: %llu bytes", nanoHandle.size());
-	//HTStats stats = hd.GetHashTableStats();
-	//stats.Print();
+	HTStats stats = hd.GetHashTableStats();
+	stats.Print();
 #endif
 #pragma endregion
 
@@ -600,9 +601,14 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	//Camera camera({ 0, -1024, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
+	Camera camera({ 0, -1024, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
+
+	int currentSetup = 0;
+	std::array<CameraSetup, 2> cameraSetups;
+	cameraSetups[0] = { { 0, 0, -1024 }, { 0, 0, 1 }, { 1, 0, 0 } };
+	cameraSetups[1] = { { -1024, 0, 0 }, { 1, 0, 0 }, { 0, 0, 1 } };
 	//Camera camera({ 0, 0, -1024 }, { 0, 0, 1 }, { 1, 0, 0 }, 35.f);
-	Camera camera({ -1024, 0, 0 }, { 1, 0, 0 }, { 0, 0, 1 }, 35.f);
+	//Camera camera({ -1024, 0, 0 }, { 1, 0, 0 }, { 0, 0, 1 }, 35.f);
 
 	hd.SortAndUploadTreeIndices(deviceInfo, graphicsCommandPool, graphicsQueue, camera.Position(), uploadInfo.SortedTreesStorageBuffer);
 
@@ -838,6 +844,20 @@ int main(int argc, char* argv[])
 	float mouseSensitivity = 0.1f;
 	Eigen::Vector3f editColor(1, 0, 0);
 
+	enum class Tool
+	{
+		Brush,
+		Copy,
+		Fill,
+		ToolCount
+	} toolSelected = Tool::Copy;
+
+	Eigen::Vector3i copyPosition = { INT_MAX, INT_MAX, INT_MAX };
+	Eigen::Vector3i copyStart = { INT_MAX, INT_MAX, INT_MAX };
+	uint32_t copyTree = 0xFFFFFFFF;
+
+	std::array<float, 150000> fpsHistory;
+
 	auto before = std::chrono::high_resolution_clock::now();
 
 	while (!window->ShouldClose())
@@ -848,7 +868,15 @@ int main(int argc, char* argv[])
 		{
 			if (fabs(camera.Position().x()) < 20 && fabs(camera.Position().y()) < 20 && fabs(camera.Position().z()) < 20)
 			{
-				CorePlatform.Quit();
+				if (currentSetup == cameraSetups.size())
+				{
+					CorePlatform.Quit();
+				}
+				else
+				{
+					camera.Set(cameraSetups[currentSetup++]);
+					camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
+				}
 			}
 
 			bool shouldResize = false;
@@ -886,6 +914,7 @@ int main(int argc, char* argv[])
 				if (fps > 0)
 				{
 					avgFps = (avgFps * frameCounter + fps) / (frameCounter + 1);
+					fpsHistory[frameCounter] = fps;
 					++frameCounter;
 				}
 
@@ -939,9 +968,6 @@ int main(int argc, char* argv[])
 						// TODO: layout transition?
 						if (mouseX < windowWidth && mouseY < windowHeight)
 						{
-							const int selectionRadius = selectionDiameter / 2;
-							const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
-
 							struct TreeMinMax
 							{
 								uint64_t min = 0xFFFFFFFFFFFFFFFF;
@@ -949,45 +975,240 @@ int main(int argc, char* argv[])
 							};
 
 							std::map<int, TreeMinMax> treeMinMax;
-							const int coordMin = -selectionDiameter / 2;
-							const int coordMax = selectionDiameter - selectionDiameter / 2;
-							if (imageQueryResult.tree != 0xFFFFFFFF)
+
+							openvdb::Vec3s editColorOpenvdb = { editColor[0], editColor[1], editColor[2] };
+
+							if (toolSelected == Tool::Brush)
 							{
-								const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
-								const int xOffset = imageQueryResult.x + treeOffset.x();
-								const int yOffset = imageQueryResult.y + treeOffset.y();
-								const int zOffset = imageQueryResult.z + treeOffset.z();
-								for (int x = coordMin + xOffset; x < coordMax + xOffset; ++x)
+								const int selectionRadius = selectionDiameter / 2;
+								const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
+
+								const int coordMin = -selectionDiameter / 2;
+								const int coordMax = selectionDiameter - selectionDiameter / 2;
+								if (imageQueryResult.tree != 0xFFFFFFFF)
 								{
-									for (int y = coordMin + yOffset; y < coordMax + yOffset; ++y)
+									const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
+									const int xOffset = imageQueryResult.x + treeOffset.x();
+									const int yOffset = imageQueryResult.y + treeOffset.y();
+									const int zOffset = imageQueryResult.z + treeOffset.z();
+									for (int x = coordMin + xOffset; x < coordMax + xOffset; ++x)
 									{
-										for (int z = coordMin + zOffset; z < coordMax + zOffset; ++z)
+										for (int y = coordMin + yOffset; y < coordMax + yOffset; ++y)
 										{
-											const int tree = hd.GetCoordsTree({ x, y, z });
-											if (tree != -1)
+											for (int z = coordMin + zOffset; z < coordMax + zOffset; ++z)
 											{
-												const int xInTree = x % HTConstants::TREE_SPAN;
-												const int yInTree = y % HTConstants::TREE_SPAN;
-												const int zInTree = z % HTConstants::TREE_SPAN;
-
-												uint64_t voxelIndex = hd.ComputeVoxelIndex(tree, xInTree, yInTree, zInTree);
-												if (voxelIndex != 0xFFFFFFFFFFFFFFFF)
+												const int tree = hd.GetCoordsTree({ x, y, z });
+												if (tree != -1)
 												{
-													const int xFromMean = xOffset - x;
-													const int yFromMean = yOffset - y;
-													const int zFromMean = zOffset - z;
+													const int xInTree = x % HTConstants::TREE_SPAN;
+													const int yInTree = y % HTConstants::TREE_SPAN;
+													const int zInTree = z % HTConstants::TREE_SPAN;
 
-													if (xFromMean * xFromMean + yFromMean * yFromMean + zFromMean * zFromMean <= testDistance)
+													uint64_t voxelIndex = hd.ComputeVoxelIndex(tree, xInTree, yInTree, zInTree);
+													if (voxelIndex != 0xFFFFFFFFFFFFFFFF)
 													{
-														treeMinMax[tree].min = (std::min)(treeMinMax[tree].min, voxelIndex);
-														treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
+														const int xFromMean = xOffset - x;
+														const int yFromMean = yOffset - y;
+														const int zFromMean = zOffset - z;
 
-														//CoreLogInfo("%i, %i, %i", x, y, z);
-														hd.SetVoxelColor(tree, voxelIndex, { editColor[0], editColor[1], editColor[2] });
+														if (xFromMean * xFromMean + yFromMean * yFromMean + zFromMean * zFromMean <= testDistance)
+														{
+															treeMinMax[tree].min = (std::min)(treeMinMax[tree].min, voxelIndex);
+															treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
+
+															//CoreLogInfo("%i, %i, %i", x, y, z);
+															hd.SetVoxelColor(tree, voxelIndex, editColorOpenvdb);
+														}
 													}
 												}
 											}
 										}
+									}
+								}
+							}
+							else if (toolSelected == Tool::Copy)
+							{
+								const bool isControlPressed = CoreInput.IsKeyPressed(Core::Input::Keys::Control);
+
+								if (isControlPressed)
+								{
+									copyPosition = { int(imageQueryResult.x), int(imageQueryResult.y), int(imageQueryResult.z) };
+									copyTree = imageQueryResult.tree;
+								}
+								else
+								{
+									if (copyTree != 0xFFFFFFFF)
+									{
+										bool setCopyStart = false;
+										if (!wasMousePressedRight)
+										{
+											setCopyStart = true;
+										}
+										const int selectionRadius = selectionDiameter / 2;
+										const int testDistance = selectionRadius * (selectionDiameter - selectionRadius);
+
+										const int coordMin = -selectionDiameter / 2;
+										const int coordMax = selectionDiameter - selectionDiameter / 2;
+										if (imageQueryResult.tree != 0xFFFFFFFF)
+										{
+											const Eigen::Vector3i treeOffset = hd.GetTreeOffset(imageQueryResult.tree);
+											const Eigen::Vector3i copyTreeOffset = hd.GetTreeOffset(copyTree);
+											
+											Eigen::Vector3i copyOffset;
+											if (setCopyStart)
+											{
+												copyStart = 
+												{
+													int(imageQueryResult.x + treeOffset.x()),
+													int(imageQueryResult.y + treeOffset.y()),
+													int(imageQueryResult.z + treeOffset.z())
+												};
+												copyOffset = { 0, 0, 0 };
+											}
+											else
+											{
+												copyOffset =
+												{
+													int(imageQueryResult.x + treeOffset.x() - copyStart.x()),
+													int(imageQueryResult.y + treeOffset.y() - copyStart.y()),
+													int(imageQueryResult.z + treeOffset.z() - copyStart.z())
+												};
+											}
+
+											const int xOffset = imageQueryResult.x + treeOffset.x();
+											const int yOffset = imageQueryResult.y + treeOffset.y();
+											const int zOffset = imageQueryResult.z + treeOffset.z();
+
+											const int xCopyOffset = copyPosition.x() + copyTreeOffset.x() + copyOffset.x();
+											const int yCopyOffset = copyPosition.y() + copyTreeOffset.y() + copyOffset.y();
+											const int zCopyOffset = copyPosition.z() + copyTreeOffset.z() + copyOffset.z();
+
+											for (int coordX = coordMin; coordX < coordMax; ++coordX)
+											{
+												for (int coordY = coordMin; coordY < coordMax; ++coordY)
+												{
+													for (int coordZ = coordMin; coordZ < coordMax; ++coordZ)
+													{
+														const int x = xOffset + coordX;
+														const int y = yOffset + coordY;
+														const int z = zOffset + coordZ;
+
+														const int xCopy = xCopyOffset + coordX;
+														const int yCopy = yCopyOffset + coordY;
+														const int zCopy = zCopyOffset + coordZ;
+
+														const int tree = hd.GetCoordsTree({ x, y, z });
+														const int currentCopyTree = hd.GetCoordsTree({ xCopy, yCopy, zCopy });
+
+														if (tree != 0xFFFFFFFF && currentCopyTree != 0xFFFFFFFF)
+														{
+															const int xInTree = x % HTConstants::TREE_SPAN;
+															const int yInTree = y % HTConstants::TREE_SPAN;
+															const int zInTree = z % HTConstants::TREE_SPAN;
+
+															const int xCopyInTree = xCopy % HTConstants::TREE_SPAN;
+															const int yCopyInTree = yCopy % HTConstants::TREE_SPAN;
+															const int zCopyInTree = zCopy % HTConstants::TREE_SPAN;
+
+															uint64_t voxelIndex = hd.ComputeVoxelIndex(tree, xInTree, yInTree, zInTree);
+															uint64_t copyVoxelIndex = hd.ComputeVoxelIndex(currentCopyTree, xCopyInTree, yCopyInTree, zCopyInTree);
+
+															if (voxelIndex != 0xFFFFFFFFFFFFFFFF && copyVoxelIndex != 0xFFFFFFFFFFFFFFFF)
+															{
+																const int xFromMean = xOffset - x;
+																const int yFromMean = yOffset - y;
+																const int zFromMean = zOffset - z;
+
+																if (xFromMean * xFromMean + yFromMean * yFromMean + zFromMean * zFromMean <= testDistance)
+																{
+																	treeMinMax[tree].min = (std::min)(treeMinMax[tree].min, voxelIndex);
+																	treeMinMax[tree].max = (std::max)(treeMinMax[tree].max, voxelIndex);
+
+																	//CoreLogInfo("%i, %i, %i", x, y, z);
+																	const openvdb::Vec3s color = hd.GetVoxelColor(currentCopyTree, copyVoxelIndex);
+																	hd.SetVoxelColor(tree, voxelIndex, color);
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+							else if (toolSelected == Tool::Fill)
+							{
+								if (imageQueryResult.tree != 0xFFFFFFFF)
+								{
+									uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree, imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+									const openvdb::Vec3s color = hd.GetVoxelColor(imageQueryResult.tree, voxelIndex);
+
+									if (color != editColorOpenvdb)
+									{
+										treeMinMax[imageQueryResult.tree].min = (std::min)(treeMinMax[imageQueryResult.tree].min, voxelIndex);
+										treeMinMax[imageQueryResult.tree].max = (std::max)(treeMinMax[imageQueryResult.tree].max, voxelIndex);
+
+										Eigen::Vector3i voxelCoords(imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+
+										struct StackVoxelData
+										{
+											Eigen::Vector3i pos;
+											uint32_t tree;
+											uint64_t index;
+										};
+										std::stack<StackVoxelData> voxelsForColoring;
+										voxelsForColoring.push({ voxelCoords, imageQueryResult.tree, voxelIndex });
+
+										const Eigen::Vector3i nextVoxelCoords[6] =
+										{
+											{-1, 0, 0},
+											{1, 0, 0},
+											{0, -1, 0},
+											{0, 1, 0},
+											{0, 0, -1},
+											{0, 0, 1}
+										};
+
+										const float colorMargin = 0.06f;
+										do
+										{
+											const StackVoxelData currentVoxelData = voxelsForColoring.top();
+											voxelsForColoring.pop();
+
+											openvdb::Vec3s currentColor = hd.GetVoxelColor(currentVoxelData.tree, currentVoxelData.index);
+
+											openvdb::Vec3s colorDifference = currentColor - color;
+											if (colorDifference.lengthSqr() < colorMargin)
+											{
+												hd.SetVoxelColor(currentVoxelData.tree, currentVoxelData.index, editColorOpenvdb);
+												treeMinMax[currentVoxelData.tree].min = (std::min)(treeMinMax[currentVoxelData.tree].min, currentVoxelData.index);
+												treeMinMax[currentVoxelData.tree].max = (std::max)(treeMinMax[currentVoxelData.tree].max, currentVoxelData.index);
+
+												for (int n = 0; n < 6; ++n)
+												{
+													Eigen::Vector3i nextCoords = nextVoxelCoords[n] + currentVoxelData.pos + hd.GetTreeOffset(currentVoxelData.tree);
+													uint32_t coordsTree = hd.GetCoordsTree(nextCoords);
+
+													const int xInTree = nextCoords.x() % HTConstants::TREE_SPAN;
+													const int yInTree = nextCoords.y() % HTConstants::TREE_SPAN;
+													const int zInTree = nextCoords.z() % HTConstants::TREE_SPAN;
+
+													nextCoords = { xInTree, yInTree, zInTree };
+
+													if (coordsTree != 0xFFFFFFFF)
+													{
+														uint64_t nextVoxelIndex = hd.ComputeVoxelIndex(coordsTree,
+															uint32_t(nextCoords.x()), uint32_t(nextCoords.y()), uint32_t(nextCoords.z()));
+
+														if (nextVoxelIndex != 0xFFFFFFFFFFFFFFFF && hd.GetVoxelColor(coordsTree, nextVoxelIndex) != editColorOpenvdb)
+														{
+															voxelsForColoring.push({ nextCoords, coordsTree, nextVoxelIndex });
+														}
+													}
+												}
+											}
+										} while (!voxelsForColoring.empty());
 									}
 								}
 							}
@@ -1040,8 +1261,27 @@ int main(int argc, char* argv[])
 				}
 				camera.MoveLocal({ 0, 0, 10.f * timeDelta });
 
+				if (fabs(camera.Position().x()) < 20 && fabs(camera.Position().y()) < 20 && fabs(camera.Position().z()) < 20)
+				{
+					if (currentSetup == cameraSetups.size())
+					{
+						CorePlatform.Quit();
+					}
+					else
+					{
+						camera.Set(cameraSetups[currentSetup++]);
+					}
+				}
+
 				camera.GetTracingParameters(windowWidth, windowHeight, tracingParameters);
-				tracingParameters.SelectionDiameter = selectionDiameter;
+				if (toolSelected == Tool::Brush || toolSelected == Tool::Copy)
+				{
+					tracingParameters.SelectionDiameter = selectionDiameter;
+				}
+				else
+				{
+					tracingParameters.SelectionDiameter = 1;
+				}
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, tracingUniformBuffer.Memory,
 					sizeof(TracingParameters), &tracingParameters);
 				VulkanUtils::Buffer::Copy(deviceInfo.Handle, cuttingPlanesBuffer.Memory,
@@ -1219,7 +1459,9 @@ int main(int argc, char* argv[])
 	}
 	vkDeviceWaitIdle(deviceInfo.Handle);
 
-	CoreLogInfo("avg fps: %f", avgFps);
+	std::sort(fpsHistory.begin(), fpsHistory.begin() + frameCounter);
+
+	CoreLogInfo("frame stats: %f,%f,%f,%f,%f", fpsHistory[0], fpsHistory[int(frameCounter * .25f)], fpsHistory[int(frameCounter / 2)], fpsHistory[int(frameCounter * .75f)], fpsHistory[frameCounter - 1]);
 #pragma endregion
 	
 	//=========================== Destroying Vulkan objects ==========================

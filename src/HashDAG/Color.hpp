@@ -18,6 +18,7 @@ public:
 
 	Color(int voxelCount);
 	void Set(uint64_t index, const openvdb::Vec3s& color);
+	openvdb::Vec3s Get(uint64_t index) const;
 
 	bool Compressed() const;
 

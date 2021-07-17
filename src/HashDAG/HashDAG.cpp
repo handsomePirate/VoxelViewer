@@ -358,7 +358,7 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::Create("Voxel Page Table Storage Buffer", deviceInfo,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		pageTableBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, uploadInfo.PageTableStorageBuffer);
-	CoreLogInfo("Page table size (MB): %f", uploadInfo.PageTableStorageBuffer.Size / 1048576.f);
+	CoreLogInfo("Page table size: %llu bytes", uploadInfo.PageTableStorageBuffer.Size);
 
 	VulkanFactory::Buffer::BufferInfo pageTableStagingBufferInfo;
 	VulkanFactory::Buffer::Create("Voxel Page Table Staging Buffer", deviceInfo, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, pageTableBufferSize,
@@ -376,7 +376,7 @@ void HashTable::UploadToGPU(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::Create("Voxel Pages Storage Buffer", deviceInfo,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		pagesBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, uploadInfo.PagesStorageBuffer);
-	CoreLogInfo("Page pool size (MB): %f", uploadInfo.PagesStorageBuffer.Size / 1048576.f);
+	CoreLogInfo("Page pool size: %llu bytes", uploadInfo.PagesStorageBuffer.Size);
 
 	// TODO: Staging buffer.
 	VulkanFactory::Buffer::BufferInfo pagesStagingBufferInfo;
@@ -558,6 +558,7 @@ uint32_t HashTable::GetNodeSize(uint32_t* const ptr)
 	return __popcnt(*ptr & 0xFF) * 2 + 1;
 }
 
+#ifdef MEASURE_MEMORY_CONSUMPTION
 uint8_t HashTable::GetFirstLeafMask(uint64_t leaf) const
 {
 	return uint8_t(
@@ -570,6 +571,7 @@ uint8_t HashTable::GetFirstLeafMask(uint64_t leaf) const
 		((leaf & 0x00FF000000000000) == 0 ? 0 : 1 << 6) |
 		((leaf & 0xFF00000000000000) == 0 ? 0 : 1 << 7));
 }
+#endif
 
 HashDAG::HashDAG()
 	: treeGrid_(openvdb::Int32Grid::create(-1)), treeGridAccessor_(treeGrid_->getAccessor()) {}
@@ -1398,6 +1400,11 @@ void HashDAG::SetVoxelColor(uint32_t tree, uint64_t voxelIndex, const openvdb::V
 	treeColorArrays_[tree]->Set(voxelIndex, color);
 }
 
+openvdb::Vec3s HashDAG::GetVoxelColor(uint32_t tree, uint64_t voxelIndex) const
+{
+	return treeColorArrays_[tree]->Get(voxelIndex);
+}
+
 void HashDAG::SortAndUploadTreeIndices(VulkanFactory::Device::DeviceInfo& deviceInfo, VkCommandPool commandPool,
 	VkQueue queue, const Eigen::Vector3f& cameraPosition, VulkanFactory::Buffer::BufferInfo& sortedTreesBuffer)
 {
@@ -1454,7 +1461,7 @@ const Eigen::Vector3i& HashDAG::GetTreeOffset(int tree) const
 	return trees_[tree].rootOffset;
 }
 
-int HashDAG::GetCoordsTree(const Eigen::Vector3i& coords)
+uint32_t HashDAG::GetCoordsTree(const Eigen::Vector3i& coords) const
 {
 	return treeGridAccessor_.getValue(
 		{

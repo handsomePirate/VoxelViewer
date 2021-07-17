@@ -10,6 +10,11 @@ void Color::Set(uint64_t index, const openvdb::Vec3s& color)
 	voxelMap_[index] = { color.x(), color.y(), color.z(), 0 };
 }
 
+openvdb::Vec3s Color::Get(uint64_t index) const
+{
+	return openvdb::Vec3s(voxelMap_[index].x(), voxelMap_[index].y(), voxelMap_[index].z());
+}
+
 bool Color::Compressed() const
 {
 	return indices_.size() > 0;
