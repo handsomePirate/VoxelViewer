@@ -43,6 +43,7 @@ public:
 	float& Fov();
 
 	static float DegToRad(float value);
+	static float RadToDeg(float value);
 
 	void GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight, TracingParameters& tracingParameters) const;
 

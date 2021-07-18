@@ -161,7 +161,9 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		bool consoleLogger = (int)CoreLogger.GetTypes() & (int)Core::LoggerType::Console;
 		ImGui::Checkbox("Console", &consoleLogger);
 
-		ImGui::SliderFloat("fov", &camera.Fov(), Camera::DegToRad(20.f), Camera::DegToRad(100.f));
+		float degFov = Camera::RadToDeg(camera.Fov());
+		ImGui::SliderFloat("fov", &degFov, 60.f, 160.f);
+		camera.Fov() = Camera::DegToRad(degFov);
 
 		ImGui::SliderFloat("mouse sensitivity", &mouseSensitivity, 0.01f, 1.f);
 

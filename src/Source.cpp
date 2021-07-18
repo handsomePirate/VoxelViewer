@@ -296,7 +296,7 @@ int main(int argc, char* argv[])
 
 	if (defaultExample)
 	{
-		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/buddha.vdb");
+		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
 	}
 	else
 	{
@@ -316,7 +316,7 @@ int main(int argc, char* argv[])
 	}
 	
 	openvdb::Vec3SGrid::Ptr grid;
-	if (true)
+	if (levelSet)
 	{
 		auto levelSetGrid = OpenVDBUtils::LoadFloatGrid(gridFile, gridName);
 		
@@ -610,7 +610,7 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, 1024, 4096 }, { 0, 0, -1 }, { 1, 0, 0 }, 35.f);
+	Camera camera({ 0, -1024, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 70.f);
 
 #ifdef PRE_ANIMATE_CAMERA
 	int currentSetup = 0;
@@ -1307,7 +1307,7 @@ int main(int argc, char* argv[])
 								hd.UploadColorRangeToGPU(deviceInfo, graphicsCommandPool, graphicsQueue, colorInfo,
 									t, offset * sizeof(openvdb::Vec4s), size * sizeof(openvdb::Vec4s),
 									colorCompressionMargin);
-				}
+							}
 						}
 					}
 

@@ -68,15 +68,21 @@ float& Camera::Fov()
 
 float Camera::DegToRad(float value)
 {
-	return value / 2.f * (PI_CONST / 180.f);
+	return value * (PI_CONST / 180.f);
+}
+
+float Camera::RadToDeg(float value)
+{
+	return value * (180.f / PI_CONST);
 }
 
 void Camera::GetTracingParameters(uint32_t imageWidth, uint32_t imageHeight, TracingParameters& tracingParameters) const
 {
-	const float aspect = imageWidth / float(imageHeight);
-	const Eigen::Vector3f X = right_ * sin(fov_) * aspect;
-	const Eigen::Vector3f Y = up_ * sin(fov_);
-	const Eigen::Vector3f Z = forward_ * cos(fov_);
+	const float aspect = imageHeight / float(imageWidth);
+	const float fovHalf = fov_ * .5f;
+	const Eigen::Vector3f X = right_ * sin(fovHalf);
+	const Eigen::Vector3f Y = up_ * sin(fovHalf) * aspect;
+	const Eigen::Vector3f Z = forward_ * cos(fovHalf);
 
 	const Eigen::Vector3f bottomLeft = position_ + Z - Y - X;
 	const Eigen::Vector3f bottomRight = position_ + Z - Y + X;
