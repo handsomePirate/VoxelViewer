@@ -6,7 +6,10 @@
 //#define IMGUI_LOGGER_USE_COLORS
 //#define MEASURE_MEMORY_CONSUMPTION
 //#define PRE_ANIMATE_CAMERA
-//#define PROCEDURAL_GRID 1
+//#define PROCEDURAL_GRID 0
+#if defined(PROCEDURAL_GRID) && (PROCEDURAL_GRID == 0)
+#define PROCEDURAL_VOXEL_COUNT 1000
+#endif
 //#define LEVEL_SET_RANDOMIZE_COLOR
 
 #include <vulkan/vulkan.hpp>
@@ -28,5 +31,3 @@
 #else // defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
 #error "OS not supported."
 #endif // defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
-
-// TODO: Memory tracking.

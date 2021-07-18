@@ -380,7 +380,7 @@ int main(int argc, char* argv[])
 	std::uniform_int_distribution<int> distribution_y(startY, endY);
 	std::uniform_int_distribution<int> distribution_z(startZ, endZ);
 	std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
-	const int voxelCount = 1000000;
+	const int voxelCount = PROCEDURAL_VOXEL_COUNT;
 
 	for (int v = 0; v < voxelCount; ++v)
 	{
@@ -437,13 +437,13 @@ int main(int argc, char* argv[])
 #ifdef MEASURE_MEMORY_CONSUMPTION
 	uint64_t nanoSize = 0;
 	{
-		//grid->pruneGrid();
-		//auto nanoHandle = nanovdb::openToNanoVDB(*grid);
-		//nanoSize = nanoHandle.size();
-		//CoreLogInfo("NanoVDB upload size: %llu bytes", nanoSize);
+		grid->pruneGrid();
+		auto nanoHandle = nanovdb::openToNanoVDB(*grid);
+		nanoSize = nanoHandle.size();
+		CoreLogInfo("NanoVDB upload size: %llu bytes", nanoSize);
+		grid->tree().voxelizeActiveTiles();
 	}
 #endif
-	//grid->tree().voxelizeActiveTiles();
 
 	auto hdStart = std::chrono::high_resolution_clock::now();
 	HashDAG hd{};
@@ -480,12 +480,11 @@ int main(int argc, char* argv[])
 	auto t3 = fabs((hd.Left() - hd.Right()) / float(grid->voxelSize().x()));
 	uint64_t cube = uint64_t(t1 * t2 * t3);
 	CoreLogInfo("Dense memory used: %llu bytes", cube * (sizeof(openvdb::Vec3s) + 1));
-	CoreLogInfo("%llu,%u,%u,%f,%u,%f,%u,%u,%llu", nanoSize, hd.GetColorMemorySize(),
-		hd.GetMemoryDadoAttributes(), hd.GetMemoryNoDAGDadoAttributes() / float(hd.GetMemoryDadoAttributes()),
-		hd.GetMemoryDoloniusAttributes(), hd.GetMemoryNoDAGDoloniusAttributes() / float(hd.GetMemoryDoloniusAttributes()),
-		svo, svo - hd.GetMemoryDadoAttributes() - hd.GetColorMemorySize(),
-		cube * (sizeof(openvdb::Vec3s) + 1));
-	//CoreLogInfo("NanoVDB upload size: %llu bytes", nanoHandle.size());
+	//CoreLogInfo("%llu,%u,%u,%f,%u,%f,%u,%u,%llu", nanoSize, hd.GetColorMemorySize(),
+	//	hd.GetMemoryDadoAttributes(), hd.GetMemoryNoDAGDadoAttributes() / float(hd.GetMemoryDadoAttributes()),
+	//	hd.GetMemoryDoloniusAttributes(), hd.GetMemoryNoDAGDoloniusAttributes() / float(hd.GetMemoryDoloniusAttributes()),
+	//	svo, svo - hd.GetMemoryDadoAttributes() - hd.GetColorMemorySize(),
+	//	cube * (sizeof(openvdb::Vec3s) + 1));
 	HTStats stats = hd.GetHashTableStats();
 	stats.Print();
 #endif
@@ -921,6 +920,7 @@ int main(int argc, char* argv[])
 
 				const float timeDelta = renderDelta * .005f;
 
+#ifndef PRE_ANIMATE_CAMERA
 				if (mouseX < window->GetWidth() && windowHeight - mouseY < window->GetHeight())
 				{
 					VulkanUtils::Buffer::Copy(deviceInfo.Handle, idTarget.Image, idStagingBufferInfo.DescriptorBufferInfo.buffer,
@@ -1313,7 +1313,7 @@ int main(int argc, char* argv[])
 
 					lastPressedY = pressedY;
 				}
-#ifdef PRE_ANIMATE_CAMERA
+#else
 				camera.MoveLocal({ 0, 0, 10.f * timeDelta });
 				
 				if (fabs(camera.Position().x()) < 20 && fabs(camera.Position().y()) < 20 && fabs(camera.Position().z()) < 20)
