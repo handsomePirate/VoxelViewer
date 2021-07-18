@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			CoreLogInfo("Usage: VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe");
+			CoreLogInfo("Usage: VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe -l <grid-filename> <grid-name> | VoxelViewer.exe");
 			return 0;
 		}
 	}
@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
 			}
 			else
 			{
-				CoreLogInfo("Usage: VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe");
+				CoreLogInfo("Usage: VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe -l <grid-filename> <grid-name> | VoxelViewer.exe");
 				return 0;
 			}
 			gridFile = argv[2];
@@ -296,7 +296,7 @@ int main(int argc, char* argv[])
 
 	if (defaultExample)
 	{
-		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/dragon.vdb");
+		gridFile = CoreFilesystem.GetAbsolutePath("../../exampleData/buddha.vdb");
 	}
 	else
 	{
@@ -316,7 +316,7 @@ int main(int argc, char* argv[])
 	}
 	
 	openvdb::Vec3SGrid::Ptr grid;
-	if (levelSet)
+	if (true)
 	{
 		auto levelSetGrid = OpenVDBUtils::LoadFloatGrid(gridFile, gridName);
 		
@@ -331,6 +331,7 @@ int main(int argc, char* argv[])
 
 				if (val)
 				{
+#ifdef LEVEL_SET_RANDOMIZE_COLOR
 					std::random_device randomDevice;
 					std::mt19937 generator(randomDevice());
 					std::uniform_int_distribution<int> distribution_float_0_1(0, 256);
@@ -338,7 +339,9 @@ int main(int argc, char* argv[])
 					float g = distribution_float_0_1(generator) / 256.f;
 					float b = distribution_float_0_1(generator) / 256.f;
 					openvdb::Vec3s vecVal(r, g, b);
-					//openvdb::Vec3s vecVal(1, 1, 1);
+#else
+					openvdb::Vec3s vecVal(1, 1, 1);
+#endif
 					if (iter.isVoxelValue())
 					{
 						accessor.setValue(iter.getCoord(), vecVal);
@@ -607,7 +610,7 @@ int main(int argc, char* argv[])
 		computeSetLayout);
 	Debug::Utils::SetDescriptorSetName(deviceInfo.Handle, rasterizationSet, "Compute Descriptor Set");
 
-	Camera camera({ 0, -1024, 0 }, { 0, 1, 0 }, { 1, 0, 0 }, 35.f);
+	Camera camera({ 0, 1024, 4096 }, { 0, 0, -1 }, { 1, 0, 0 }, 35.f);
 
 #ifdef PRE_ANIMATE_CAMERA
 	int currentSetup = 0;

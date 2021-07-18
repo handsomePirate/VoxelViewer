@@ -7,6 +7,7 @@
 //#define MEASURE_MEMORY_CONSUMPTION
 //#define PRE_ANIMATE_CAMERA
 //#define PROCEDURAL_GRID 1
+//#define LEVEL_SET_RANDOMIZE_COLOR
 
 #include <vulkan/vulkan.hpp>
 
