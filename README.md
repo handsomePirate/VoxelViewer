@@ -1,10 +1,10 @@
 # VoxelViewer
 A real-time program to view VDB voxel files. It offers visual color editing and inspecting.
 
-##Building
+## Building
 The program is Windows-only and uses premake5 for building. For a Visual Studio 19 files build, use BootstrapVS19.bat. This will generate files that MSVC needs to build the binaries.
 
-##Running
+## Running
 Voxel Viewer expects
 ```shell
 VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe -l <grid-filename> <grid-name> | VoxelViewer.exe
