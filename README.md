@@ -1,5 +1,6 @@
 # VoxelViewer
 A real-time program to view VDB voxel files. It offers visual color editing and inspecting. The tools available for color editing are the brush, the copy tool, the fill tool and undo and redo features. To view inner voxels, the user may also use cutting planes for voxel filtering.
+![Screen](Screen.png?raw=true)
 
 ## Building
 The program is Windows-only and uses premake5 for building. For a Visual Studio 19 files build, use BootstrapVS19.bat. This will generate files that MSVC needs to build the binaries.
