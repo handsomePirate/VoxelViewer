@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
 	}
 
 #pragma region Program options
-	const bool enableVulkanDebug = true;
+	const bool enableVulkanDebug = false;
 #pragma endregion
 
 #pragma region Singleton initialization
