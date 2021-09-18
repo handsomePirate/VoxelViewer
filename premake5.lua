@@ -68,7 +68,7 @@ project "VoxelViewer"
 
 	links {
 		"$(VULKAN_SDK)/lib/vulkan-1.lib",
-		"$(VULKAN_SDK)/lib/shaderc_shared.lib",
+		"ext/shaderc/lib/shaderc_shared.lib",
 		"ext/imgui/bin/%{cfg.buildcfg}/ImGui.lib",
 		"ext/openvdb/lib/%{cfg.buildcfg}/openvdb.lib",
 		"ext/openvdb/ext/blosc/lib/%{cfg.buildcfg}/blosc.lib"
