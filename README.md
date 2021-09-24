@@ -14,3 +14,6 @@ VoxelViewer.exe <grid-filename> <grid-name> | VoxelViewer.exe -l <grid-filename>
 ```
 
 If the exe is run without arguments, it will launch with the default dragon model. Any VDB grid that is input as filename and grid name (inside the file) must be `openvdb::Vec3SGrid` where the voxel colors are stored. It is also possible to load level sets (`openvdb::FloatGrid`) by prepending -l, however they will be completely filled in with white.
+
+## Controls
+When the app is running, the camera can be controlled by WSAD and left mouse click and drag. It is possible to right click and drag to draw on the model and use the mouse wheel to increase or decrease the radius of the editing brush. Ctrl+Z and Ctrl+Y trigger the undo and redo operation respectively.
