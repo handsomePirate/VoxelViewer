@@ -851,8 +851,9 @@ int main(int argc, char* argv[])
 
 	float mouseSensitivity = 0.1f;
 	Eigen::Vector3f editColor(1, 0, 0);
+	Eigen::Vector3i voxelCoordinates(0, 0, 0);
 
-	GUI::EditingTool toolSelected = GUI::EditingTool::Brush;
+	GUI::EditingTool toolSelected = GUI::EditingTool::Pick;
 
 	Eigen::Vector3i copyPosition = { INT_MAX, INT_MAX, INT_MAX };
 	Eigen::Vector3i copyStart = { INT_MAX, INT_MAX, INT_MAX };
@@ -1211,6 +1212,17 @@ int main(int argc, char* argv[])
 									}
 								}
 							}
+							else if (toolSelected == GUI::EditingTool::Pick)
+							{
+								if (imageQueryResult.tree != 0xFFFFFFFF)
+								{
+									uint64_t voxelIndex = hd.ComputeVoxelIndex(imageQueryResult.tree, imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+									const openvdb::Vec3s color = hd.GetVoxelColor(imageQueryResult.tree, voxelIndex);
+									editColor = Eigen::Vector3f(color.x(), color.y(), color.z());
+									voxelCoordinates = hd.GetTreeOffset(imageQueryResult.tree) +
+										Eigen::Vector3i(imageQueryResult.x, imageQueryResult.y, imageQueryResult.z);
+								}
+							}
 
 							for (auto&& tree : treeMinMax)
 							{
@@ -1352,7 +1364,8 @@ int main(int argc, char* argv[])
 				}
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor, toolSelected);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity,
+					editColor, voxelCoordinates, toolSelected);
 			}
 			
 			if (shouldResize)
@@ -1402,7 +1415,8 @@ int main(int argc, char* argv[])
 				before = std::chrono::high_resolution_clock::now();
 
 				bool updated = GUI::Renderer::Update(deviceInfo, guiVertexBuffer, guiIndexBuffer,
-					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity, editColor, toolSelected);
+					window, renderDelta, fps, camera, tracingParameters, cuttingPlanes, mouseSensitivity,
+					editColor, voxelCoordinates, toolSelected);
 			}
 			
 			{

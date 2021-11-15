@@ -92,7 +92,7 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 	VulkanFactory::Buffer::BufferInfo& guiVertexBuffer, VulkanFactory::Buffer::BufferInfo& guiIndexBuffer,
 	Core::Window* const window, float renderTimeDelta, float fps, Camera& camera,
 	TracingParameters& tracingParameters, CuttingPlanes& cuttingPlanes, float& mouseSensitivity,
-	Eigen::Vector3f& editColor, EditingTool& tool)
+	Eigen::Vector3f& editColor, Eigen::Vector3i& selectedVoxel, EditingTool& tool)
 {
 	static CuttingPlanes cuttingPlanesMinMax = cuttingPlanes;
 
@@ -209,6 +209,11 @@ bool GUI::Renderer::Update(const VulkanFactory::Device::DeviceInfo& deviceInfo,
 		{
 			tool = EditingTool::Fill;
 		}
+		if (ImGui::RadioButton("Pick", tool == EditingTool::Pick))
+		{
+			tool = EditingTool::Pick;
+		}
+		ImGui::Text("[%i, %i, %i]", selectedVoxel.x(), selectedVoxel.y(), selectedVoxel.z());
 
 		ImGui::End();
 	}
